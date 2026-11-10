@@ -51,6 +51,8 @@ export default function Album() {
 	const [files, setFiles] = useState<FileItem[]>([])
 	const [curFolderPath, setCurFolderPath] = useState('')
 	const [sheetOpen, setSheetOpen] = useState(false)
+	const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+	const [renameName, setRenameName] = useState('')
 	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [checkedPaths, setCheckedPaths] = useState<Set<string>>(new Set())
 	const [pageNum, setPageNum] = useState(1)
@@ -175,17 +177,22 @@ export default function Album() {
 	}
 
 	const modifyFolderName = async () => {
+		if (loading) return
+		const newName = renameName.trim()
+		if (!newName) {
+			notify.warning('新名称不能为空')
+			return
+		}
+		if (newName === currentFolder?.folderName) {
+			setRenameDialogOpen(false)
+			return
+		}
 		try {
 			setLoading(true)
-			const newName = prompt('输入新名称')
-			if (newName === null) return
-			if (!newName.trim()) {
-				notify.warning('新名称不能为空')
-				return
-			}
-			const res = await renameFolder(curFolderPath, newName.trim())
+			const res = await renameFolder(curFolderPath, newName)
 			if (res.success) {
 				notify.success('重命名成功')
+				setRenameDialogOpen(false)
 				await getAllFolders()
 				if (res.data?.folderPath) await selectFolder(res.data.folderPath)
 			}
@@ -304,7 +311,7 @@ export default function Album() {
 						<Button className="lg:hidden" icon={<FolderOpen className="size-4" />} onClick={() => setSheetOpen(true)}>目录</Button>
 						{curFolderPath && (
 							<>
-								<Button icon={<Pencil className="size-4" />} disabled={loading} onClick={modifyFolderName}>重命名</Button>
+								<Button icon={<Pencil className="size-4" />} disabled={loading} onClick={() => { setRenameName(currentFolder?.folderName || ''); setRenameDialogOpen(true) }}>重命名</Button>
 								<ConfirmDialog
 									trigger={<Button variant="destructive" icon={<Trash2 className="size-4" />} disabled={loading}>删除相册</Button>}
 									title="删除整个相册？"
@@ -412,6 +419,25 @@ export default function Album() {
 			<Sheet title="相册目录" side="left" width={288} open={sheetOpen} onClose={() => setSheetOpen(false)} bodyClassName="p-0">
 				{renderFolderList()}
 			</Sheet>
+
+			<Dialog
+				title="重命名相册"
+				open={renameDialogOpen}
+				onSubmit={modifyFolderName}
+				onCancel={() => setRenameDialogOpen(false)}
+				width={420}
+				confirmLabel="保存"
+			>
+				<Input
+					autoFocus
+					value={renameName}
+					placeholder="输入相册名称"
+					onChange={(event) => setRenameName(event.target.value)}
+					onKeyDown={(event) => {
+						if (event.key === 'Enter') modifyFolderName()
+					}}
+				/>
+			</Dialog>
 
 			<Dialog
 				title="编辑相册配置"

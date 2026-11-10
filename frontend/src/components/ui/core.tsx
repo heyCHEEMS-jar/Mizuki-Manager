@@ -238,11 +238,13 @@ const TagsSelect = ({ value, onChange, placeholder, tokenSeparators = [',', '，
 	)
 }
 
+const toSelectValue = (value: any) => `option:${String(value)}`
+
 export const Select = ({ value, defaultValue, onChange, options = [], placeholder, mode, className, disabled, ...props }: SelectProps) => {
 	if (mode === 'tags' || mode === 'multiple') return <TagsSelect value={value} onChange={onChange} placeholder={placeholder} mode={mode} className={className} disabled={disabled} {...props} />
 	const selected = value ?? defaultValue
 	return (
-		<SelectPrimitive.Root value={selected === undefined || selected === '' ? undefined : String(selected)} onValueChange={(next) => onChange?.(options.find((option) => String(option.value) === next)?.value ?? next)} disabled={disabled}>
+		<SelectPrimitive.Root value={selected === undefined ? undefined : toSelectValue(selected)} onValueChange={(next) => onChange?.(options.find((option) => toSelectValue(option.value) === next)?.value ?? next)} disabled={disabled}>
 			<SelectPrimitive.Trigger className={cn('flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring data-placeholder:text-muted-foreground', className)}>
 				<SelectPrimitive.Value placeholder={placeholder} />
 				<SelectPrimitive.Icon><ChevronDown className="size-4 opacity-50" /></SelectPrimitive.Icon>
@@ -251,7 +253,7 @@ export const Select = ({ value, defaultValue, onChange, options = [], placeholde
 				<SelectPrimitive.Content position="popper" className="z-1200 max-h-72 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
 					<SelectPrimitive.Viewport className="p-1">
 						{options.map((option) => (
-							<SelectPrimitive.Item key={String(option.value)} value={String(option.value)} disabled={option.disabled} className="relative flex cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent data-disabled:cursor-not-allowed data-disabled:opacity-50">
+							<SelectPrimitive.Item key={toSelectValue(option.value)} value={toSelectValue(option.value)} disabled={option.disabled} className="relative flex cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent data-disabled:cursor-not-allowed data-disabled:opacity-50">
 								<span className="absolute left-2 grid size-4 place-items-center"><SelectPrimitive.ItemIndicator><Check className="size-4" /></SelectPrimitive.ItemIndicator></span>
 								<SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
 							</SelectPrimitive.Item>
