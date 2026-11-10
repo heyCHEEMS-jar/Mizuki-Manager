@@ -158,7 +158,7 @@ export default function Device() {
 									if (event.key === 'Enter' || event.key === ' ') collection.toggleItem(index)
 								}}
 							>
-								<div className="relative aspect-[4/3] overflow-hidden bg-muted">
+								<div className="relative aspect-4/3 overflow-hidden bg-muted">
 									{item.image ? <Image src={item.image} alt={item.name} loading="lazy" className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <Box className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/40" />}
 									<span className="absolute left-3 top-3 rounded-md bg-black/65 px-2 py-1 text-xs text-white backdrop-blur">{item.category || DEFAULT_CATEGORY}</span>
 									<Checkbox className="absolute right-3 top-3 rounded bg-background/85 p-1" checked={selected} onCheckedChange={(checked) => collection.setItemSelected(index, checked)} />
