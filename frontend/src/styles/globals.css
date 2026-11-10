@@ -88,6 +88,15 @@
 	select {
 		font: inherit;
 	}
+
+	:where(a[href], button, select, summary, label[for], input[type='button'], input[type='submit'], input[type='reset'], input[type='checkbox'], input[type='radio'], input[type='file'], [role='button'], [role='checkbox'], [role='menuitem'], [role='option'], [role='switch'], [role='tab']) {
+		cursor: pointer;
+	}
+
+	:where(button, select, input):disabled,
+	:where([role='button'], [role='checkbox'], [role='menuitem'], [role='option'], [role='switch'], [role='tab'])[aria-disabled='true'] {
+		cursor: not-allowed;
+	}
 }
 
 @media (max-width: 768px) {

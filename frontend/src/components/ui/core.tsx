@@ -251,7 +251,7 @@ export const Select = ({ value, defaultValue, onChange, options = [], placeholde
 				<SelectPrimitive.Content position="popper" className="z-1200 max-h-72 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
 					<SelectPrimitive.Viewport className="p-1">
 						{options.map((option) => (
-							<SelectPrimitive.Item key={String(option.value)} value={String(option.value)} disabled={option.disabled} className="relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent data-disabled:pointer-events-none data-disabled:opacity-50">
+							<SelectPrimitive.Item key={String(option.value)} value={String(option.value)} disabled={option.disabled} className="relative flex cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent data-disabled:cursor-not-allowed data-disabled:opacity-50">
 								<span className="absolute left-2 grid size-4 place-items-center"><SelectPrimitive.ItemIndicator><Check className="size-4" /></SelectPrimitive.ItemIndicator></span>
 								<SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
 							</SelectPrimitive.Item>
@@ -271,23 +271,33 @@ interface UploadProps {
 	disabled?: boolean
 }
 
-export const Upload = ({ beforeUpload, accept, multiple, children, disabled }: UploadProps) => (
-	<label className={cn('inline-flex', disabled && 'pointer-events-none opacity-50')}>
-		<input
-			type="file"
-			accept={accept}
-			multiple={multiple}
-			disabled={disabled}
-			className="sr-only"
-			onChange={(event) => {
-				const files = Array.from(event.target.files || [])
-				files.forEach((file) => beforeUpload?.(file, files))
-				event.target.value = ''
-			}}
-		/>
-		{children}
-	</label>
-)
+export const Upload = ({ beforeUpload, accept, multiple, children, disabled }: UploadProps) => {
+	const inputRef = React.useRef<HTMLInputElement>(null)
+	const trigger = React.isValidElement<{ disabled?: boolean }>(children)
+		? React.cloneElement(children, { disabled: disabled || children.props.disabled })
+		: children
+
+	return (
+		<>
+			<input
+				ref={inputRef}
+				type="file"
+				accept={accept}
+				multiple={multiple}
+				disabled={disabled}
+				className="sr-only"
+				onChange={(event) => {
+					const files = Array.from(event.target.files || [])
+					files.forEach((file) => beforeUpload?.(file, files))
+					event.target.value = ''
+				}}
+			/>
+			<span className={cn('inline-flex', disabled && 'opacity-50')} onClick={() => inputRef.current?.click()}>
+				{trigger}
+			</span>
+		</>
+	)
+}
 
 interface DatePickerProps {
 	value?: any
