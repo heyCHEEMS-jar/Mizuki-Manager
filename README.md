@@ -35,6 +35,41 @@ Mizuki Manager 直接管理服务器上的 Mizuki 项目文件，为不希望频
 - **身份认证**：使用 JWT、刷新令牌 Cookie、验证码和单会话控制保护管理入口。
 - **响应式界面**：基于 React、Tailwind CSS 与 Radix UI，适配桌面和移动设备。
 
+## 界面预览
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/01-login.png" alt="登录界面" width="100%" /><br />
+      <sub>登录界面</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/02-dashboard.png" alt="管理首页" width="100%" /><br />
+      <sub>管理首页</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/03-posts.png" alt="文章管理" width="100%" /><br />
+      <sub>文章管理</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/04-markdown-editor.png" alt="Markdown 编辑器" width="100%" /><br />
+      <sub>Markdown 编辑器</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/05-config.png" alt="配置管理" width="100%" /><br />
+      <sub>配置管理</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/06-builder.png" alt="构建部署" width="100%" /><br />
+      <sub>构建部署</sub>
+    </td>
+  </tr>
+</table>
+
 ## 工作方式
 
 ```text
