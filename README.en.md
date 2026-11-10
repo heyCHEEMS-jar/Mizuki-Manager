@@ -35,6 +35,41 @@ For the simplest deployment, run Mizuki Manager on the same server as the Mizuki
 - **Authentication** using JWTs, refresh-token cookies, CAPTCHA, and single-session control.
 - **Responsive UI** built with React, Tailwind CSS, and Radix UI for desktop and mobile use.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/01-login.png" alt="Login" width="100%" /><br />
+      <sub>Login</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/02-dashboard.png" alt="Dashboard" width="100%" /><br />
+      <sub>Dashboard</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/03-posts.png" alt="Post management" width="100%" /><br />
+      <sub>Post management</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/04-markdown-editor.png" alt="Markdown editor" width="100%" /><br />
+      <sub>Markdown editor</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/05-config.png" alt="Configuration" width="100%" /><br />
+      <sub>Configuration</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/06-builder.png" alt="Build and deployment" width="100%" /><br />
+      <sub>Build and deployment</sub>
+    </td>
+  </tr>
+</table>
+
 ## How It Works
 
 ```text
