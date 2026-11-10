@@ -41,11 +41,7 @@ interface FileItem {
 	url: string
 }
 
-const toPublicPath = (filePath: string) => {
-	const normalized = filePath.replace(/\\/g, '/')
-	const markerIndex = normalized.lastIndexOf('/public/')
-	return markerIndex === -1 ? normalized : normalized.slice(markerIndex + '/public'.length)
-}
+const toPublicUrl = (url: string) => new URL(url, window.location.origin).href
 
 export default function Album() {
 	const form = useForm()
@@ -365,7 +361,7 @@ export default function Album() {
 						<div className={cn('grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
 							{files.map((file) => {
 								const selected = checkedPaths.has(file.filePath)
-								const publicPath = toPublicPath(file.filePath)
+								const publicUrl = toPublicUrl(file.url)
 								return (
 									<article
 										key={file.filePath}
@@ -384,8 +380,8 @@ export default function Album() {
 										</div>
 										<div className="p-3">
 											<h2 className="truncate text-sm font-medium" title={file.filename}>{file.filename}</h2>
-											<button type="button" className="mt-1 flex max-w-full items-center gap-1 text-left text-xs text-muted-foreground hover:text-primary" title={publicPath} onClick={(event) => { event.stopPropagation(); copy(publicPath) }}>
-												<Copy className="size-3 shrink-0" /><span className="truncate">{publicPath}</span>
+											<button type="button" className="mt-1 flex max-w-full items-center gap-1 text-left text-xs text-muted-foreground hover:text-primary" title={publicUrl} onClick={(event) => { event.stopPropagation(); copy(publicUrl) }}>
+												<Copy className="size-3 shrink-0" /><span className="truncate">{publicUrl}</span>
 											</button>
 										</div>
 									</article>
