@@ -123,7 +123,7 @@ export default function About() {
 					disabled={loading}
 					height="calc(100vh - 18rem)"
 					minHeight={420}
-					className="min-h-[calc(100vh-18rem)] !rounded-none !shadow-none"
+					className="min-h-[calc(100vh-18rem)] rounded-none! shadow-none!"
 				/>
 				{loading && (
 					<div className="absolute inset-0 grid place-items-center bg-background/60 backdrop-blur-[1px]">
