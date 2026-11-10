@@ -37,13 +37,15 @@ Mizuki Manager 直接管理服务器上的 Mizuki 项目文件，为不希望频
 
 ## 工作方式
 
-```mermaid
-flowchart LR
-    A[浏览器] --> B[Mizuki Manager]
-    B --> C[React 管理界面]
-    B --> D[Express API]
-    D --> E[Mizuki 项目文件]
-    D --> F[构建与部署目录]
+```text
+浏览器
+  │
+  ▼
+Mizuki Manager
+  ├─ React 管理界面
+  └─ Express API
+      ├─ 读写 Mizuki 项目文件
+      └─ 构建并同步部署目录
 ```
 
 开发环境中，前端默认运行于 `3000` 端口，API 默认运行于 `3001` 端口；生产环境由 Express 在 `PORT` 指定的端口同时提供 API 和前端构建产物。

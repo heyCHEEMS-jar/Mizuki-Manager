@@ -37,13 +37,15 @@ For the simplest deployment, run Mizuki Manager on the same server as the Mizuki
 
 ## How It Works
 
-```mermaid
-flowchart LR
-    A[Browser] --> B[Mizuki Manager]
-    B --> C[React Dashboard]
-    B --> D[Express API]
-    D --> E[Mizuki Project Files]
-    D --> F[Build and Deploy Directory]
+```text
+Browser
+  │
+  ▼
+Mizuki Manager
+  ├─ React dashboard
+  └─ Express API
+      ├─ Reads and writes Mizuki project files
+      └─ Builds and syncs the deployment directory
 ```
 
 In development, the frontend runs on port `3000` and the API runs on port `3001` by default. In production, Express serves both the API and the compiled frontend from the port configured by `PORT`.
