@@ -14,6 +14,8 @@ module.exports = {
 	JWT_SECRET: process.env.JWT_SECRET,
 	// token有效期
 	JWT_EXPIRES_IN: process.env.TOKEN_EXPIRES_IN,
+	// 登录Cookie默认仅通过HTTPS传输
+	COOKIE_SECURE: process.env.COOKIE_SECURE?.toLowerCase() !== 'false',
 	BASE_PATH,
 	PUBLIC_DIR,
 	// 项目部署路径

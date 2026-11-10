@@ -1,31 +1,31 @@
-import { useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { openDB, DBInstance } from '../utils/database'
 
 export const useBuilderLogDB = () => {
 	const dbRef = useRef<DBInstance>(null)
 
-	const _getDB = async () => {
+	const getDB = useCallback(async () => {
 		if (dbRef.current) return dbRef.current
-		const inst = await openDB('builder_log_store')
-		dbRef.current = inst
-		return inst
-	}
+		const db = await openDB('builder_log_store')
+		dbRef.current = db
+		return db
+	}, [])
 
-	const saveCache = async (content: string) => {
-		const db = await _getDB()
-		return await db.put({ id: 'latest', content })
-	}
+	const saveCache = useCallback(async (content: string) => {
+		const db = await getDB()
+		return db.put({ id: 'latest', content })
+	}, [getDB])
 
-	const getCache = async () => {
-		const db = await _getDB()
+	const getCache = useCallback(async () => {
+		const db = await getDB()
 		const data = await db.getById('latest')
 		return data?.content || ''
-	}
+	}, [getDB])
 
-	const clearCache = async () => {
-		const db = await _getDB()
-		return await db.put({ id: 'latest', content: '' })
-	}
+	const clearCache = useCallback(async () => {
+		const db = await getDB()
+		return db.put({ id: 'latest', content: '' })
+	}, [getDB])
 
-	return { saveCache, getCache, clearCache }
+	return useMemo(() => ({ saveCache, getCache, clearCache }), [saveCache, getCache, clearCache])
 }

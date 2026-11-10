@@ -1,4 +1,4 @@
-import { message } from 'antd'
+import { notify as message } from '../lib/notify'
 import { redirectToLogin } from './util'
 
 type MethodType = 'GET' | 'POST' | 'PUT' | 'DELETE'

@@ -1,12 +1,13 @@
 const express = require('express')
 const router = express.Router()
 const { AuthManager } = require('../managers/index.js')
+const { COOKIE_SECURE } = require('../config.js')
 const { getFormattedTimeMs } = require('../utils/util.js')
 const am = new AuthManager()
 
 const COOKIE_OPTIONS = {
 	httpOnly: true,
-	secure: process.env.NODE_ENV === 'production', // 生产环境下启用https
+	secure: COOKIE_SECURE, // 默认仅通过HTTPS传输cookie
 	sameSite: 'strict', // 防止CSRF攻击
 	maxAge: getFormattedTimeMs(process.env.TOKEN_EXPIRES_IN), // cookie过期时间与长token一致
 	path: '/mizuki/auth' // 仅refresh-token接口需要

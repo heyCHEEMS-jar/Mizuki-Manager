@@ -1,42 +1,17 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import {
-	Card,
-	Row,
-	Col,
-	Tag,
-	Progress,
-	Button,
-	Modal,
-	Form,
-	Input,
-	Select,
-	message,
-	Upload,
-	Image,
-	Space,
-	Typography,
-	Spin,
-	Grid,
-	Layout,
-	DatePicker,
-	InputNumber,
-	Empty,
-	Pagination,
-	Checkbox,
-	CheckboxProps,
-	Popconfirm,
-	CheckboxChangeEvent
-} from 'antd'
-import { EditOutlined, UploadOutlined, LinkOutlined, StarFilled, DeleteOutlined, PlayCircleOutlined } from '@ant-design/icons'
-import { getAnimeConfig, writeAnimeConfig, uploadAnimeImages } from '../services/anime'
-import { compareMonth, throttle } from '../utils/util'
-import styles from '../styles/pages/anime.module.scss'
-import { Content } from 'antd/es/layout/layout'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import dayjs from 'dayjs'
+import { ExternalLink, FileUp, Image as ImageIcon, Pencil, PlayCircle, Star } from 'lucide-react'
+import { CollectionControls } from '../components/CollectionControls'
+import { Page, PageHeader, PageLoading } from '../components/Page'
+import { Button, Checkbox, DatePicker, Form, FormField, Image, Input, NumberInput, Dialog, Pagination, Progress, Select, Textarea, Upload, useForm, useFormWatch } from '../components/ui'
 import { imageAccept } from '../configs/upload-config'
+import { usePagedCollection } from '../hooks/usePagedCollection'
+import { notify } from '../lib/notify'
+import { getAnimeConfig, uploadAnimeImages, writeAnimeConfig } from '../services/anime'
+import { cn } from '../lib/utils'
+import { compareMonth, throttle } from '../utils/util'
 
-const { useBreakpoint } = Grid
-const statusOpts = [
+const statusOptions = [
 	{ label: '在看', value: 'watching' },
 	{ label: '看过', value: 'completed' },
 	{ label: '想看', value: 'planned' }
@@ -59,171 +34,104 @@ interface AnimeItem {
 	endDate?: string
 }
 
-// 接收数据
-interface AnimeData {
-	localAnimeList: AnimeItem[]
-}
+const statusLabel = (status: AnimeItem['status']) => statusOptions.find((option) => option.value === status)?.label || status
 
 export default function Anime() {
-	const screens = useBreakpoint()
-	const [form] = Form.useForm()
+	const form = useForm()
 	const [loading, setLoading] = useState(false)
-	const [animeList, setAnimeList] = useState<AnimeItem[]>([]) // 总数据列表
-	const [isModalOpen, setIsModalOpen] = useState(false)
-	const [editingIndex, setEditingIndex] = useState<number>() // 当前编辑的anime索引 -1为新增模式
-	const [pageList, setPageList] = useState<AnimeItem[]>([]) // 当前分页数据列表
-	const [pageNum, setPageNum] = useState(1) // 当前页数
-	const [pageSize, setPageSize] = useState(12) // 每页数量
-	const [checkedIdxes, setCheckedIdxes] = useState<Set<number>>(new Set()) // 选中对象的索引数组
+	const [isDialogOpen, setIsDialogOpen] = useState(false)
+	const [editingIndex, setEditingIndex] = useState<number>()
+	const collection = usePagedCollection<AnimeItem>()
+	const coverValue = useFormWatch('cover', form)
 
-	const coverValue = Form.useWatch('cover', form)
-
-	// 全选
-	const onCheckAllChange: CheckboxProps['onChange'] = (e) => {
-		setCheckedIdxes(e.target.checked ? new Set(pageList.map((_, index) => index)) : new Set())
-	}
-
-	const _handleCheck = (needCheck: boolean, index: number) => {
-		setCheckedIdxes((prev) => {
-			const next = new Set(prev)
-			if (needCheck) {
-				next.add(index)
-			} else {
-				next.delete(index)
-			}
-			return next
-		})
-	}
-
-	// 复选框勾选
-	const onCheckChange = (e: CheckboxChangeEvent, index: number) => {
-		e.stopPropagation()
-		_handleCheck(e?.target?.checked, index)
-	}
-
-	// 切换复选框勾选
-	const toggleCheck = (index: number) => {
-		const needCheck = !checkedIdxes.has(index)
-		_handleCheck(needCheck, index)
-	}
-
-	// 分页改变
-	const onPageChange = async (page: number, pageSize: number) => {
-		setCheckedIdxes(new Set())
-		setPageNum(page)
-		setPageSize(pageSize)
-		setPageList(animeList.slice((page - 1) * pageSize, page * pageSize) || [])
-	}
-
-	// 获取配置
-	const getConfig = useCallback(async (num: number, size: number) => {
+	const getConfig = useCallback(async (page: number, pageSize: number) => {
 		try {
 			setLoading(true)
 			const res = await getAnimeConfig()
-			if (res.success) {
-				if (!res.data) throw new Error('未从响应中获取到配置数据')
-				const data = (res.data as AnimeData)?.localAnimeList
-				setAnimeList(data || [])
-				setPageList(data.slice((num - 1) * size, num * size) || [])
-			}
+			if (res.success) collection.setItems(res.data?.localAnimeList || [], page, pageSize)
 		} catch {
 		} finally {
 			setLoading(false)
 		}
 	}, [])
 
-	// 打开编辑窗口
-	const openEditModal = (e: React.MouseEvent | undefined, index: number) => {
-		e?.stopPropagation()
+	const openEditDialog = (event: MouseEvent | undefined, index: number) => {
+		event?.stopPropagation()
 		setEditingIndex(index)
-		form.resetFields()
+		form.reset()
 		if (index !== -1) {
-			// 修改回显数据
-			const data = pageList[index]
-			form.setFieldsValue({
-				...data,
-				year: data.year ? dayjs(data.year) : null,
-				startDate: data.startDate ? dayjs(data.startDate) : null,
-				endDate: data.endDate ? dayjs(data.endDate) : null
+			const item = collection.pageItems[index]
+			form.setValues({
+				...item,
+				year: item.year ? dayjs(item.year) : undefined,
+				startDate: item.startDate ? dayjs(item.startDate) : undefined,
+				endDate: item.endDate ? dayjs(item.endDate) : undefined
 			})
 		}
-		setIsModalOpen(true)
+		setIsDialogOpen(true)
 	}
 
-	// 更新总列表
-	const updateList = useCallback(
-		async (newList: AnimeItem[], successMsg: string, num: number, size: number) => {
-			try {
-				setLoading(true)
-				const res = await writeAnimeConfig({ localAnimeList: newList })
-				if (res.success) {
-					if (successMsg) message.success(successMsg)
-					setIsModalOpen(false)
-					setCheckedIdxes(new Set()) // 清空选中项
-					await getConfig(num, size)
-				}
-			} catch {
-			} finally {
-				setLoading(false)
-			}
-		},
-		[getConfig]
-	)
-
-	// 保存编辑
-	const _handleSave = useCallback(async () => {
-		if (editingIndex === undefined) return
+	const updateList = useCallback(async (items: AnimeItem[], successMessage: string, page: number, pageSize: number) => {
 		try {
 			setLoading(true)
-			const values = await form.validateFields()
-			const newList = [...animeList]
-			if (editingIndex !== -1) {
-				// 修改模式
-				// 找到当前item在总列表的索引,浅拷贝内存地址一致
-				const realIndex = animeList.findIndex((item) => item === pageList[editingIndex])
-				if (realIndex === -1) return
-				newList.splice(realIndex, 1) // 先移除该元素
+			const res = await writeAnimeConfig({ localAnimeList: items })
+			if (res.success) {
+				if (successMessage) notify.success(successMessage)
+				setIsDialogOpen(false)
+				await getConfig(page, pageSize)
 			}
-			// 新增或修改模式都要重新置顶
-			newList.unshift({
-				...values,
-				year: values.year ? values.year.format('YYYY') : '',
-				startDate: values.startDate ? values.startDate.format('YYYY-MM') : '',
-				endDate: values.endDate ? values.endDate.format('YYYY-MM') : '',
-				episodes: `${values.totalEpisodes} episodes`
-			})
-			await updateList(newList, editingIndex === -1 ? '添加成功' : '修改成功', pageNum, pageSize) // 更新总列表
 		} catch {
 		} finally {
 			setLoading(false)
 		}
-	}, [updateList, animeList, editingIndex, form])
-	const throttledSave = useMemo(() => throttle(_handleSave, 2000, { immediate: true }), [_handleSave])
+	}, [getConfig])
 
-	// 上传封面
+	const handleSave = useCallback(async () => {
+		if (editingIndex === undefined) return
+		try {
+			setLoading(true)
+			const values = await form.validate()
+			const items = [...collection.items]
+			if (editingIndex !== -1) {
+				const realIndex = items.indexOf(collection.pageItems[editingIndex])
+				if (realIndex === -1) return
+				items.splice(realIndex, 1)
+			}
+			items.unshift({
+				...values,
+				year: values.year?.format('YYYY') || '',
+				startDate: values.startDate?.format('YYYY-MM') || '',
+				endDate: values.endDate?.format('YYYY-MM') || '',
+				episodes: `${values.totalEpisodes} episodes`
+			})
+			await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [collection.items, collection.page, collection.pageItems, collection.pageSize, editingIndex, form, updateList])
+	const throttledSave = useMemo(() => throttle(handleSave, 2000, { immediate: true }), [handleSave])
+
 	const uploadCover = async (file: File) => {
 		try {
 			setLoading(true)
 			const res = await uploadAnimeImages([file])
 			if (res.success) {
-				message.success('上传成功')
-				form.setFieldsValue({ cover: res.data?.[0]?.publicPath || '' })
+				notify.success('上传成功')
+				form.setValues({ cover: res.data?.[0]?.publicPath || '' })
 			}
 		} catch {
 		} finally {
 			setLoading(false)
 		}
+		return false
 	}
 
-	// 删除选中
 	const removeAnime = async () => {
-		const removeItems: Set<AnimeItem> = new Set(pageList.filter((_, index) => checkedIdxes.has(index)))
-		const newList = animeList.filter((item) => !removeItems.has(item)) // pageList由animeList截取得到(浅拷贝),数组内都是相同内存地址的对象
-		// 删除后的分页总数
-		const newTotalPages = Math.max(1, Math.ceil(newList.length / pageSize))
-		// 计算删除后应该更新的pageNum值
-		const newPageNum = Math.min(pageNum, newTotalPages)
-		await updateList(newList, '删除成功', newPageNum, pageSize)
+		const removeItems = new Set(collection.selectedItems)
+		const items = collection.items.filter((item) => !removeItems.has(item))
+		const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
+		await updateList(items, '删除成功', page, collection.pageSize)
 	}
 
 	useEffect(() => {
@@ -231,284 +139,169 @@ export default function Anime() {
 	}, [])
 
 	return (
-		<Layout className={styles['layout-container']}>
-			<Content className={styles.content}>
-				<Spin spinning={loading}>
-					{/* 顶部标题与操作栏 */}
-					<div className={styles.toolbar}>
-						<div className={styles.toolbarTitle}>
-							<Typography.Title level={4} className={styles.pageTitle}>
-								<PlayCircleOutlined /> 追番记录
-							</Typography.Title>
-							<Typography.Text type="secondary">管理追番数据</Typography.Text>
-						</div>
-					</div>
+		<Page>
+			<PageHeader eyebrow="Watchlist" title="追番记录" description="维护观看状态、进度、评分与番剧资料。" />
+			<CollectionControls
+				itemCount={collection.pageItems.length}
+				selectedCount={collection.selected.size}
+				allSelected={collection.allSelected}
+				partiallySelected={collection.partiallySelected}
+				loading={loading}
+				addLabel="添加追番"
+				deleteTitle="删除选中的追番记录？"
+				deleteDescription="所选记录将从追番配置中移除。"
+				onSelectAll={collection.selectAll}
+				onDelete={removeAnime}
+				onAdd={() => openEditDialog(undefined, -1)}
+			/>
 
-					<Space>
-						{pageList.length > 0 ? (
-							<Checkbox
-								className={styles.checkbox}
-								onChange={onCheckAllChange}
-								indeterminate={checkedIdxes.size > 0 && checkedIdxes.size < pageList.length}
-								checked={checkedIdxes.size === pageList.length}
+			{loading && !collection.pageItems.length ? (
+				<PageLoading label="正在加载追番记录..." />
+			) : collection.pageItems.length ? (
+				<div className={cn('grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
+					{collection.pageItems.map((anime, index) => {
+						const selected = collection.selected.has(index)
+						const percent = anime.totalEpisodes ? Math.round((anime.progress / anime.totalEpisodes) * 100) : 0
+						return (
+							<article
+								key={`${anime.title}-${anime.year}-${index}`}
+								className={cn('group relative cursor-pointer overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md', selected && 'border-primary ring-2 ring-primary/15')}
+								role="button"
+								tabIndex={0}
+								onClick={() => collection.toggleItem(index)}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter' || event.key === ' ') collection.toggleItem(index)
+								}}
 							>
-								全选
-							</Checkbox>
-						) : null}
-						{checkedIdxes.size > 0 ? (
-							<Popconfirm title="确定删除?" okText="确定" cancelText="取消" onConfirm={removeAnime} placement="bottom">
-								<Button loading={loading} icon={<DeleteOutlined />}>
-									删除
-								</Button>
-							</Popconfirm>
-						) : null}
-						<Button loading={loading} icon={<EditOutlined />} onClick={() => openEditModal(undefined, -1)}>
-							添加追番
-						</Button>
-					</Space>
-
-					{pageList.length > 0 ? (
-						<Row gutter={[4, 4]} className={styles.animeListRow}>
-							{pageList.map((anime, index) => (
-								<Col key={index} xs={12} sm={8} md={12} lg={6}>
-									<Card
-										className={styles.card}
-										hoverable
-										size="small"
-										cover={
-											<div className={styles.cover} onClick={(e) => e.stopPropagation()}>
-												{anime.cover && (
-													<Image loading="lazy" height="100%" width="100%" className={styles.coverImage} src={anime.cover} alt={anime.title} />
-												)}
-												<Tag color="black" className={styles.tag}>
-													{anime.year}
-												</Tag>
-												{(() => {
-													const selected = checkedIdxes.has(index)
-													return (
-														<Checkbox
-															className={styles.coverCheckbox}
-															style={{ opacity: selected ? 1 : 0.4 }}
-															checked={selected}
-															onChange={(e) => onCheckChange(e, index)}
-														/>
-													)
-												})()}
-											</div>
-										}
-										actions={[
-											<a href={anime.link} target="_blank" onClick={(e) => e.stopPropagation()}>
-												<LinkOutlined />
-											</a>,
-											<EditOutlined onClick={(e) => openEditModal(e, index)} />
-										]}
-										onClick={() => toggleCheck(index)}
-									>
-										<Card.Meta
-											title={
-												<div className={styles.cardTitle}>
-													<Typography.Text ellipsis={{ tooltip: anime.title }} className={styles.animeTitle}>
-														{anime.title}
-													</Typography.Text>
-													<Typography.Text ellipsis={{ tooltip: anime.description }} className={styles.animeDescription}>
-														{anime.description}
-													</Typography.Text>
-												</div>
-											}
-											description={
-												<Space orientation="vertical" className={styles.cardDescription}>
-													<div className={styles.ratingWrapper}>
-														<div className={styles.rating}>
-															<StarFilled className={styles.starIcon} />
-															{Number(anime.rating || 0).toFixed(1)}
-														</div>
-														<Typography.Text type="secondary">
-															{anime.status === 'watching' ? '在看' : anime.status === 'completed' ? '看过' : '想看'}
-														</Typography.Text>
-													</div>
-													<Progress
-														percent={Math.round((anime.progress / anime.totalEpisodes) * 100)}
-														size="small"
-														strokeColor={anime.status === 'completed' ? '#52c41a' : '#1890ff'}
-													/>
-												</Space>
-											}
-										/>
-									</Card>
-								</Col>
-							))}
-						</Row>
-					) : (
-						<Empty className={styles.empty} description="快来开启你的追番生涯吧~" />
-					)}
-					{animeList.length > 0 && (
-						<Row>
-							<Pagination
-								size="small"
-								showQuickJumper
-								showSizeChanger
-								current={pageNum}
-								pageSize={pageSize}
-								total={animeList.length}
-								onChange={onPageChange}
-								pageSizeOptions={[12, 24, 48, 96]}
-								className={styles.pagination}
-							/>
-						</Row>
-					)}
-				</Spin>
-
-				{/* --- 编辑弹窗 --- */}
-				<Modal
-					title="编辑番剧信息"
-					open={isModalOpen}
-					onOk={throttledSave}
-					onCancel={() => setIsModalOpen(false)}
-					mask={{ closable: false }}
-					width={screens.md ? 600 : '95%'}
-					okText="保存"
-					cancelText="取消"
-					centered
-					destroyOnHidden
-					forceRender
-				>
-					<Form form={form} layout="vertical">
-						<Row gutter={[8, 0]}>
-							<Col span={24}>
-								<Form.Item className={styles.modalFormItem} name="title" label="番剧标题" rules={[{ required: true }]}>
-									<Input placeholder="输入番剧标题" className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col span={8}>
-								<Form.Item className={styles.modalFormItem} name="year" label="发布年份" rules={[{ required: true }]}>
-									<DatePicker placeholder="选择发布年份" picker="year" className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col span={16}>
-								<Form.Item className={styles.modalFormItem} name="studio" label="制作公司" rules={[{ required: true }]}>
-									<Input placeholder="例如: CloverWorks" className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<div className={styles.coverUploadWrapper}>
-									<Form.Item className={styles.modalFormItem} name="cover" label="封面图片" rules={[{ required: true }]}>
-										<Space.Compact className={styles.fullWidth}>
-											<Form.Item name="cover" noStyle>
-												<Input placeholder="输入图片外链" />
-											</Form.Item>
-											<Upload showUploadList={false} beforeUpload={uploadCover} accept={imageAccept}>
-												<Button loading={loading} icon={<UploadOutlined />}>
-													上传
-												</Button>
-											</Upload>
-										</Space.Compact>
-									</Form.Item>
-									{coverValue && (
-										<Image
-											width={screens.md ? 100 : '100%'}
-											height={80}
-											loading="lazy"
-											src={coverValue}
-											alt={coverValue || ''}
-											className={styles.modalCoverImage}
-										/>
-									)}
+								<div className="relative aspect-3/4 overflow-hidden bg-muted">
+									{anime.cover ? <Image src={anime.cover} alt={anime.title} loading="lazy" className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <ImageIcon className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/40" />}
+									<span className="absolute left-3 top-3 rounded-md bg-black/65 px-2 py-1 text-xs text-white backdrop-blur">{anime.year}</span>
+									<Checkbox className="absolute right-3 top-3 rounded bg-background/85 p-1" checked={selected} onCheckedChange={(checked) => collection.setItemSelected(index, checked)} />
 								</div>
-							</Col>
-							<Col span={24}>
-								<Form.Item className={styles.modalFormItem} name="link" label="观看链接" rules={[{ required: true }]}>
-									<Input placeholder="输入观看链接 (例如B站)" className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item className={styles.modalFormItem} name="description" label="番剧描述" rules={[{ required: true }]}>
-									<Input.TextArea placeholder="输入番剧描述" rows={3} className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item className={styles.modalFormItem} name="genre" label="番剧类型" rules={[{ required: true }]}>
-									<Select mode="tags" className={styles.fullWidth} placeholder="输入标签后按回车" tokenSeparators={[',', '，']} />
-								</Form.Item>
-							</Col>
-							<Col xs={12} md={8}>
-								<Form.Item className={styles.modalFormItem} name="rating" label="评分 (0-10)" rules={[{ required: true }]}>
-									<InputNumber
-										placeholder="输入番剧评分"
-										min={0}
-										max={10}
-										formatter={(value) => Number(value)?.toFixed(1) || ''}
-										className={styles.fullWidth}
-									/>
-								</Form.Item>
-							</Col>
-							<Col xs={12} md={8}>
-								<Form.Item
-									className={styles.modalFormItem}
-									name="progress"
-									label="观看集数"
-									dependencies={['totalEpisodes']}
-									rules={[
-										{ required: true },
-										{
-											validator(_, value) {
-												if (value > (form.getFieldValue('totalEpisodes') || 0)) return Promise.reject(new Error('不能超过总集数'))
-												return Promise.resolve()
-											}
-										}
-									]}
-								>
-									<InputNumber
-										placeholder="输入观看集数"
-										min={0}
-										formatter={(value) => Number(value)?.toFixed(0) || ''}
-										className={styles.fullWidth}
-									/>
-								</Form.Item>
-							</Col>
-							<Col xs={12} md={8}>
-								<Form.Item className={styles.modalFormItem} name="totalEpisodes" label="总集数" rules={[{ required: true }]}>
-									<InputNumber placeholder="输入总集数" min={0} formatter={(value) => Number(value)?.toFixed(0) || ''} className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col xs={12} md={8}>
-								<Form.Item className={styles.modalFormItem} name="status" label="观看状态" rules={[{ required: true }]}>
-									<Select placeholder="选择观看状态" options={statusOpts} className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col xs={12} md={8}>
-								<Form.Item
-									className={styles.modalFormItem}
-									name="startDate"
-									label="开始日期"
-									dependencies={['endDate']}
-									rules={[
-										{ required: true },
-										{
-											validator(_, value) {
-												const endTimeStr = form.getFieldValue('endDate')?.format('YYYY-MM')
-												if (!endTimeStr) return Promise.resolve()
-												const startTimeStr = value.format('YYYY-MM')
-												const compareRes = compareMonth(startTimeStr, endTimeStr)
-												if (compareRes !== undefined && compareRes > 0) {
-													return Promise.reject(new Error('不能超过结束日期'))
-												}
-												return Promise.resolve()
-											}
-										}
-									]}
-								>
-									<DatePicker picker="month" format="YYYY-MM" className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col xs={12} md={8}>
-								<Form.Item className={styles.modalFormItem} name="endDate" label="结束日期">
-									<DatePicker picker="month" format="YYYY-MM" className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-						</Row>
-					</Form>
-				</Modal>
-			</Content>
-		</Layout>
+								<div className="p-4">
+									<h2 className="truncate font-semibold">{anime.title}</h2>
+									<p className="mt-1 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{anime.description}</p>
+									<div className="mt-3 flex items-center justify-between text-xs">
+										<span className="inline-flex items-center gap-1 font-medium"><Star className="size-3.5 fill-amber-400 text-amber-400" />{Number(anime.rating || 0).toFixed(1)}</span>
+										<span className="text-muted-foreground">{statusLabel(anime.status)}</span>
+									</div>
+									<Progress percent={percent} className="mt-2" strokeColor={anime.status === 'completed' ? '#22c55e' : undefined} />
+									<div className="mt-4 flex justify-end gap-1 border-t pt-3">
+										<a href={anime.link} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-primary" aria-label={`观看 ${anime.title}`} onClick={(event) => event.stopPropagation()}><ExternalLink className="size-4" /></a>
+										<Button variant="ghost" size="small" className="size-8 px-0" aria-label={`编辑 ${anime.title}`} onClick={(event) => openEditDialog(event, index)}><Pencil className="size-4" /></Button>
+									</div>
+								</div>
+							</article>
+						)
+					})}
+				</div>
+			) : (
+				<div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
+					<PlayCircle className="size-10 opacity-40" />
+					<p>快来开启你的追番生涯</p>
+				</div>
+			)}
+
+			{collection.items.length > 0 && (
+				<Pagination
+					current={collection.page}
+					pageSize={collection.pageSize}
+					total={collection.items.length}
+					pageSizeOptions={[12, 24, 48, 96]}
+					showQuickJumper
+					showSizeChanger
+					onChange={collection.changePage}
+				/>
+			)}
+
+			<Dialog
+				title={editingIndex === -1 ? '添加追番' : '编辑番剧'}
+				open={isDialogOpen}
+				onSubmit={throttledSave}
+				onCancel={() => setIsDialogOpen(false)}
+				width={680}
+				confirmLabel="保存"
+				closeOnOutside={false}
+			>
+				<Form form={form}>
+					<FormField name="title" label="番剧标题" rules={[{ required: true }]}>
+						<Input placeholder="输入番剧标题" />
+					</FormField>
+					<div className="grid gap-x-4 md:grid-cols-3">
+						<FormField name="year" label="发布年份" rules={[{ required: true }]}>
+							<DatePicker picker="year" />
+						</FormField>
+						<FormField name="studio" label="制作公司" rules={[{ required: true }]} className="md:col-span-2">
+							<Input placeholder="例如：CloverWorks" />
+						</FormField>
+					</div>
+					<div className="flex items-start gap-3">
+						<FormField name="cover" label="封面图片" rules={[{ required: true }]} className="min-w-0 flex-1">
+							<Input placeholder="输入图片外链" />
+						</FormField>
+						<Upload beforeUpload={uploadCover} accept={imageAccept} disabled={loading}>
+							<Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>上传</Button>
+						</Upload>
+					</div>
+					{coverValue && <Image src={coverValue} alt="番剧封面预览" className="mb-4 h-28 w-full rounded-lg border object-contain" />}
+					<FormField name="link" label="观看链接" rules={[{ required: true }]}>
+						<Input prefix={<ExternalLink className="size-4" />} placeholder="输入观看链接" />
+					</FormField>
+					<FormField name="description" label="番剧描述" rules={[{ required: true }]}>
+						<Textarea placeholder="输入番剧描述" rows={3} />
+					</FormField>
+					<FormField name="genre" label="番剧类型" rules={[{ required: true }]}>
+						<Select mode="tags" placeholder="输入标签后按回车" tokenSeparators={[',', '，']} />
+					</FormField>
+					<div className="grid gap-x-4 sm:grid-cols-2 md:grid-cols-4">
+						<FormField name="rating" label="评分（0–10）" rules={[{ required: true }]}>
+							<NumberInput min={0} max={10} placeholder="评分" />
+						</FormField>
+						<FormField
+							name="progress"
+							label="观看集数"
+							rules={[
+								{ required: true },
+								{
+									validator(_, value) {
+										if (value > (form.getValue('totalEpisodes') || 0)) return Promise.reject(new Error('不能超过总集数'))
+									}
+								}
+							]}
+						>
+							<NumberInput min={0} placeholder="已看集数" />
+						</FormField>
+						<FormField name="totalEpisodes" label="总集数" rules={[{ required: true }]}>
+							<NumberInput min={0} placeholder="总集数" />
+						</FormField>
+						<FormField name="status" label="观看状态" rules={[{ required: true }]}>
+							<Select placeholder="选择状态" options={statusOptions} />
+						</FormField>
+					</div>
+					<div className="grid gap-x-4 md:grid-cols-2">
+						<FormField
+							name="startDate"
+							label="开始日期"
+							rules={[
+								{ required: true },
+								{
+									validator(_, value) {
+										const endDate = form.getValue('endDate')?.format('YYYY-MM')
+										if (!endDate) return
+										const comparison = compareMonth(value.format('YYYY-MM'), endDate)
+										if (comparison !== undefined && comparison > 0) return Promise.reject(new Error('不能超过结束日期'))
+									}
+								}
+							]}
+						>
+							<DatePicker picker="month" />
+						</FormField>
+						<FormField name="endDate" label="结束日期">
+							<DatePicker picker="month" />
+						</FormField>
+					</div>
+				</Form>
+			</Dialog>
+		</Page>
 	)
 }

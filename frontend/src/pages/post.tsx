@@ -1,39 +1,35 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Card, Input, Button, Upload, message, Space, Typography, Spin, Popconfirm, Table, Tooltip } from 'antd'
-import {
-	SaveOutlined,
-	UploadOutlined,
-	FileTextOutlined,
-	ReloadOutlined,
-	PlusOutlined,
-	EditOutlined,
-	DeleteOutlined,
-	EyeOutlined
-} from '@ant-design/icons'
-import { getAllPosts, getPostContent, updatePost, createPost, uploadPostFile, deletePost, renamePost } from '../services/post'
-import { debounce, throttle } from '../utils/util'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import MDEditor from '@uiw/react-md-editor'
+import { ArrowLeft, Edit3, ExternalLink, Eye, FilePlus2, FileText, FileUp, LoaderCircle, RefreshCw, Save, Search, Trash2 } from 'lucide-react'
+import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Page, PageHeader, PageLoading, PageSection } from '../components/Page'
+import { Button, ConfirmDialog, Input, Pagination, Upload } from '../components/ui'
 import { usePostContentDB } from '../hooks/usePostContentDB'
-import { useNavigate, useParams, Routes, Route, Link } from 'react-router-dom'
-import styles from '../styles/pages/post.module.scss'
+import { notify } from '../lib/notify'
+import { createPost, deletePost, getAllPosts, getPostContent, renamePost, updatePost, uploadPostFile } from '../services/post'
+import { debounce, throttle } from '../utils/util'
 
-const POST_FRONT_MATTER =
-	'---\n' +
-	'title: 标题\n' +
-	`published: ${new Date().toISOString().split('T')[0]}\n` +
-	'pinned: 是否置顶(true/false)\n' +
-	'description: 介绍\n' +
-	'tags: [标签1, 标签2, 标签3...]\n' +
-	'category: 分类\n' +
-	'licenseName: "CC BY 4.0"\n' +
-	'author: 作者\n' +
-	'sourceLink: "来源链接"\n' +
-	'draft: 是否为草稿(true/false)\n' +
-	`date: ${new Date().toISOString().split('T')[0]}\n` +
-	'image: "封面图片链接"\n' +
-	'---\n\n' +
-	'# 未命名文章\n'
+const today = new Date().toISOString().split('T')[0]
+const POST_FRONT_MATTER = [
+	'---',
+	'title: 标题',
+	`published: ${today}`,
+	'pinned: 是否置顶(true/false)',
+	'description: 介绍',
+	'tags: [标签1, 标签2, 标签3...]',
+	'category: 分类',
+	'licenseName: "CC BY 4.0"',
+	'author: 作者',
+	'sourceLink: "来源链接"',
+	'draft: 是否为草稿(true/false)',
+	`date: ${today}`,
+	'image: "封面图片链接"',
+	'---',
+	'',
+	'# 未命名文章',
+	''
+].join('\n')
 
-// 文章列表
 function PostList() {
 	const navigate = useNavigate()
 	const [loading, setLoading] = useState(false)
@@ -62,10 +58,10 @@ function PostList() {
 			setLoading(true)
 			const res = await deletePost(filename)
 			if (res.success) {
-				message.success('删除成功')
+				notify.success('删除成功')
 				const remainTotal = res.data?.total || 0
-				const newTotalPages = Math.max(1, Math.ceil(remainTotal / pageSize))
-				const newPageNum = Math.min(newTotalPages, pageNum)
+				const newPageNum = Math.min(Math.max(1, Math.ceil(remainTotal / pageSize)), pageNum)
+				setPageNum(newPageNum)
 				await getPosts(newPageNum, pageSize)
 			}
 		} catch {
@@ -79,7 +75,7 @@ function PostList() {
 			setLoading(true)
 			const res = await uploadPostFile(file)
 			if (res.success) {
-				message.success('上传成功')
+				notify.success('上传成功')
 				await getPosts(pageNum, pageSize)
 			}
 		} catch {
@@ -95,110 +91,112 @@ function PostList() {
 		await getPosts(num, size)
 	}
 
-	// 初始化
 	useEffect(() => {
 		getPosts(1, 12)
 	}, [])
 
 	const filteredPosts = useMemo(() => {
-		const kw = keyword.trim().toLowerCase()
-		return kw ? posts.filter((p) => p.toLowerCase().includes(kw)) : posts
+		const normalizedKeyword = keyword.trim().toLowerCase()
+		return normalizedKeyword ? posts.filter((post) => post.toLowerCase().includes(normalizedKeyword)) : posts
 	}, [posts, keyword])
 
-	const columns = [
-		{
-			title: '文章名称',
-			dataIndex: 'title',
-			key: 'title',
-			render: (_: any, filename: string) => <Link to={`/post/view/${filename}`}>{filename?.replace('.md', '')}</Link>
-		},
-		{
-			title: '操作',
-			key: 'action',
-			width: 100,
-			render: (filename: string) => (
-				<Space>
-					<Tooltip title="编辑" placement="bottom">
-						<Button loading={loading} type="link" icon={<EditOutlined />} onClick={() => navigate(`/post/edit/${filename}`)} />
-					</Tooltip>
-					<Tooltip title="查看" placement="bottom">
-						<Button loading={loading} type="link" icon={<EyeOutlined />} onClick={() => navigate(`/post/view/${filename}`)} />
-					</Tooltip>
-					<Popconfirm title="确定删除？" onConfirm={() => removePost(filename)}>
-						<Tooltip title="删除" placement="bottom">
-							<Button loading={loading} type="link" danger icon={<DeleteOutlined />} />
-						</Tooltip>
-					</Popconfirm>
-				</Space>
-			)
-		}
-	]
-
 	return (
-		<Card
-			title={
-				<span style={{ marginLeft: 24 }}>
-					<FileTextOutlined /> 文章管理
-				</span>
-			}
-			style={{ width: '100%', height: '100vh', overflowY: 'auto' }}
-			extra={
-				<Space.Compact style={{ marginLeft: 10 }}>
-					<Upload showUploadList={false} beforeUpload={uploadPost} accept=".md">
-						<Button loading={loading} icon={<UploadOutlined />}>
-							上传
-						</Button>
-					</Upload>
-					<Button loading={loading} type="primary" icon={<PlusOutlined />} onClick={() => navigate('/post/edit/new')}>
-						新建
-					</Button>
-				</Space.Compact>
-			}
-		>
-			<Input placeholder="搜索文章" allowClear value={keyword} onChange={(e) => setKeyword(e.target.value)} className={styles['search-input']} />
-			<Table
-				style={{ width: '100%' }}
-				loading={loading}
-				rowKey={(record) => record}
-				dataSource={filteredPosts}
-				columns={columns}
-				pagination={{
-					size: 'small',
-					showQuickJumper: true,
-					showSizeChanger: true,
-					placement: ['bottomCenter'],
-					pageSize: pageSize,
-					current: pageNum,
-					total: pageTotal,
-					pageSizeOptions: [12, 24],
-					onChange: onPageChange,
-					showTotal: (total) => <span style={{ fontSize: 13 }}>共 {total} 篇</span>,
-					style: { margin: '30px auto', whiteSpace: 'nowrap' }
-				}}
+		<Page>
+			<PageHeader
+				eyebrow="Content"
+				title="文章管理"
+				description="创建、上传和维护博客 Markdown 文章。"
+				actions={
+					<>
+						<Upload beforeUpload={uploadPost} accept=".md" disabled={loading}>
+							<Button icon={<FileUp className="size-4" />} disabled={loading}>上传文章</Button>
+						</Upload>
+						<Button variant="default" icon={<FilePlus2 className="size-4" />} disabled={loading} onClick={() => navigate('/post/edit/new')}>新建文章</Button>
+					</>
+				}
 			/>
-		</Card>
+
+			<PageSection bodyClassName="p-0">
+				<div className="border-b p-4">
+					<Input
+						value={keyword}
+						onChange={(event) => setKeyword(event.target.value)}
+						prefix={<Search className="size-4" />}
+						placeholder="搜索当前页文章"
+						allowClear
+						className="max-w-sm"
+					/>
+				</div>
+
+				{loading ? (
+					<PageLoading label="正在加载文章..." />
+				) : filteredPosts.length ? (
+					<div className="divide-y">
+						{filteredPosts.map((filename) => (
+							<div key={filename} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/35 sm:px-5">
+								<span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><FileText className="size-4" /></span>
+								<Link to={`/post/view/${filename}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-primary hover:underline">
+									{filename.replace('.md', '')}
+								</Link>
+								<div className="flex shrink-0 items-center gap-1">
+									<Button variant="ghost" size="small" className="size-8 px-0" title="编辑" aria-label={`编辑 ${filename}`} onClick={() => navigate(`/post/edit/${filename}`)}>
+										<Edit3 className="size-4" />
+									</Button>
+									<Button variant="ghost" size="small" className="hidden size-8 px-0 sm:inline-flex" title="查看" aria-label={`查看 ${filename}`} onClick={() => navigate(`/post/view/${filename}`)}>
+										<Eye className="size-4" />
+									</Button>
+									<ConfirmDialog
+										trigger={<Button variant="ghost" size="small" className="size-8 px-0 text-destructive hover:bg-destructive/10" title="删除" aria-label={`删除 ${filename}`}><Trash2 className="size-4" /></Button>}
+										title="删除文章？"
+										description={`“${filename}”删除后无法恢复。`}
+										confirmLabel="删除"
+										variant="destructive"
+										onConfirm={() => removePost(filename)}
+									/>
+								</div>
+							</div>
+						))}
+					</div>
+				) : (
+					<div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
+						<FileText className="size-10 opacity-40" />
+						<p>{keyword ? '当前页没有匹配的文章' : '暂无文章'}</p>
+					</div>
+				)}
+
+				<div className="border-t px-4 py-5">
+					<Pagination
+						current={pageNum}
+						pageSize={pageSize}
+						total={pageTotal}
+						pageSizeOptions={[12, 24]}
+						showSizeChanger
+						showQuickJumper
+						showTotal={(total) => <span className="mr-2 text-xs text-muted-foreground">共 {total} 篇</span>}
+						onChange={onPageChange}
+					/>
+				</div>
+			</PageSection>
+		</Page>
 	)
 }
 
 interface PostEditorProps {
-	isEditing?: boolean // 是否为编辑模式
+	isEditing?: boolean
 }
 
-// 文章编辑
-function PostEditor(props: PostEditorProps) {
+function PostEditor({ isEditing = false }: PostEditorProps) {
 	const navigate = useNavigate()
-	const { isEditing = false } = props
 	const { filename = 'new' } = useParams()
 	const [content, setContent] = useState(POST_FRONT_MATTER)
 	const [loading, setLoading] = useState(false)
 	const [showReload, setShowReload] = useState(false)
 	const db = usePostContentDB()
-	const isNewRef = useRef<boolean>(filename === 'new') // 是否为新建
-	const cacheKeyRef = useRef<string>(isNewRef.current ? 'new' : filename) // 当前缓存键
-	const filenameRef = useRef<string>(filename) // 当前文件名
-	const isEditingRef = useRef<boolean>(isEditing) // 是否为编辑模式
+	const isNewRef = useRef(filename === 'new')
+	const cacheKeyRef = useRef(isNewRef.current ? 'new' : filename)
+	const filenameRef = useRef(filename)
+	const isEditingRef = useRef(isEditing)
 
-	// 获取内容
 	const getContent = useCallback(async () => {
 		if (isNewRef.current) return
 		try {
@@ -211,53 +209,48 @@ function PostEditor(props: PostEditorProps) {
 		}
 	}, [])
 
-	// 清空草稿,恢复成默认模板
-	const _restoreDraft = useCallback(async (id: number | string) => {
-		await db.saveCache(id, POST_FRONT_MATTER) // 设为默认元数据头
+	const restoreDraft = useCallback(async (id: number | string) => {
+		await db.saveCache(id, POST_FRONT_MATTER)
 	}, [])
 
-	// 重载内容
 	const reloadContent = useCallback(async () => {
-		if (!isNewRef.current) {
+		if (isNewRef.current) {
+			setContent(POST_FRONT_MATTER)
+			await restoreDraft(cacheKeyRef.current)
+		} else {
 			await getContent()
 			await db.clearCache(cacheKeyRef.current)
-		} else {
-			setContent(POST_FRONT_MATTER)
-			await _restoreDraft(cacheKeyRef.current)
 		}
 		setShowReload(false)
-	}, [getContent, _restoreDraft])
+	}, [getContent, restoreDraft])
 
-	const _updateEditFilename = useCallback((newFilename: string) => {
+	const updateEditFilename = useCallback((newFilename: string) => {
 		navigate(`/post/edit/${newFilename}`, { replace: true })
 		isNewRef.current = false
 		cacheKeyRef.current = newFilename
 		filenameRef.current = newFilename
-	}, [])
+	}, [navigate])
 
-	// 保存
-	const _handleSave = useCallback(async () => {
+	const handleSave = useCallback(async () => {
 		if (loading || !isEditingRef.current) return
 		try {
 			setLoading(true)
 			if (isNewRef.current) {
-				const match = content.match(/^#\s+(.+)$/m)
-				// ["# (标题)" 或 未命名文章]-YYYY-MM-DD_hh:mm:ss
-				const newFilename = `${match?.[1].trim().replace(/[\\/:*?"<>|]/g, '_') || '未命名文章'}_${new Date().toISOString().slice(0, 19).replace(/\:/g, '-').replace('T', '_')}.md`
-				const res = await createPost(newFilename, content)
+				const title = content.match(/^#\s+(.+)$/m)?.[1].trim().replace(/[\\/:*?"<>|]/g, '_') || '未命名文章'
+				const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-').replace('T', '_')
+				const res = await createPost(`${title}_${timestamp}.md`, content)
 				if (res.success) {
-					await _restoreDraft('new') // new缓存恢复默认模板
+					await restoreDraft('new')
 					const createdFilename = res.data?.filename
-					if (createdFilename) {
-						_updateEditFilename(createdFilename)
-					} else throw new Error('未从响应中获取到创建的文件名')
-					message.success('创建成功')
+					if (!createdFilename) throw new Error('未从响应中获取到创建的文件名')
+					updateEditFilename(createdFilename)
+					notify.success('创建成功')
 				}
 			} else {
 				const res = await updatePost(filenameRef.current, content)
 				if (res.success) {
-					await db.clearCache(cacheKeyRef.current) // 清空缓存
-					message.success('保存成功')
+					await db.clearCache(cacheKeyRef.current)
+					notify.success('保存成功')
 				}
 			}
 			setShowReload(false)
@@ -265,34 +258,31 @@ function PostEditor(props: PostEditorProps) {
 		} finally {
 			setLoading(false)
 		}
-	}, [content, reloadContent, _restoreDraft, _updateEditFilename])
-	const throttledSave = useMemo(() => throttle(_handleSave, 2000, { immediate: true }), [_handleSave])
+	}, [content, loading, restoreDraft, updateEditFilename])
+	const throttledSave = useMemo(() => throttle(handleSave, 2000, { immediate: true }), [handleSave])
 
-	// 保存草稿
-	const _saveDraft = useCallback(async (content: string) => {
+	const saveDraft = useCallback(async (nextContent: string) => {
 		if (!isEditingRef.current) return
-		await db.saveCache(cacheKeyRef.current, content)
+		await db.saveCache(cacheKeyRef.current, nextContent)
 		setShowReload(true)
 	}, [])
-	const debouncedSaveDraft = useMemo(() => debounce(_saveDraft, 500), [_saveDraft])
+	const debouncedSaveDraft = useMemo(() => debounce(saveDraft, 500), [saveDraft])
 
-	// 重命名
 	const handleRename = async () => {
 		try {
 			setLoading(true)
 			const newName = prompt('输入新名称')
 			if (newName === null) return
-			if (!newName?.trim()) {
-				message.warning('新名称不能为空')
+			if (!newName.trim()) {
+				notify.warning('新名称不能为空')
 				return
 			}
 			const res = await renamePost(filenameRef.current, newName.trim())
 			if (res.success) {
-				message.success('重命名成功')
 				const renamedFilename = res.data?.filename
-				if (renamedFilename) {
-					_updateEditFilename(renamedFilename)
-				} else throw new Error('未从响应中获取到重命名后的新文件名')
+				if (!renamedFilename) throw new Error('未从响应中获取到重命名后的新文件名')
+				updateEditFilename(renamedFilename)
+				notify.success('重命名成功')
 			}
 		} catch {
 		} finally {
@@ -300,86 +290,87 @@ function PostEditor(props: PostEditorProps) {
 		}
 	}
 
-	const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-		setContent(e.target.value)
-		debouncedSaveDraft(e.target.value)
+	const onChange = (value?: string) => {
+		const nextContent = value ?? ''
+		setContent(nextContent)
+		debouncedSaveDraft(nextContent)
 	}
 
-	// 初始化
 	useEffect(() => {
 		db.getCache(cacheKeyRef.current).then((draft) => {
-			if (draft) {
-				// 判断是否为新建,新建用id为"new"的缓存,默认内容为POST_FRONT_MATTER
-				if (isNewRef.current) {
-					// 新建
-					setContent(draft)
-					if (draft !== POST_FRONT_MATTER) setShowReload(true)
-				} else {
-					// 修改
-					if (draft === POST_FRONT_MATTER || !isEditingRef.current) {
-						getContent() // 未修改则重新获取
-					} else {
-						setContent(draft) // 已修改则使用缓存
-						setShowReload(true)
-					}
-				}
-			} else {
-				// 无缓存直接获取
+			if (!draft) {
 				getContent()
+				return
+			}
+			if (isNewRef.current) {
+				setContent(draft)
+				if (draft !== POST_FRONT_MATTER) setShowReload(true)
+			} else if (draft === POST_FRONT_MATTER || !isEditingRef.current) {
+				getContent()
+			} else {
+				setContent(draft)
+				setShowReload(true)
 			}
 		})
 	}, [])
 
+	const pageTitle = isNewRef.current ? '新建文章' : `${isEditingRef.current ? '编辑' : '查看'}文章`
+
 	return (
-		<Card
-			title={
-				<span className={styles.cardTitle}>
-					<FileTextOutlined />{' '}
-					{isNewRef.current ? '新建文章' : `${isEditingRef.current ? '编辑' : '查看'} ${filenameRef.current?.replace('.md', '')}`}
-				</span>
-			}
-			className={styles.card}
-			extra={
-				isEditingRef.current && (
+		<Page>
+			<PageHeader
+				eyebrow="Post"
+				title={pageTitle}
+				description={isNewRef.current ? '从默认模板开始编写新的 Markdown 文章。' : filenameRef.current.replace('.md', '')}
+				actions={
 					<>
-						<a className={styles.helpLink} href="https://docs.mizuki.mysqil.com/press/file/" target="_blank">
-							如何编写文章？
-						</a>
-						<Space.Compact>
-							{!isNewRef.current && (
-								<Button loading={loading} onClick={handleRename}>
-									重命名
-								</Button>
-							)}
-							<Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={throttledSave}>
-								保存
-							</Button>
-						</Space.Compact>
+						<Button icon={<ArrowLeft className="size-4" />} onClick={() => navigate('/post')}>返回列表</Button>
+						{isEditingRef.current && (
+							<>
+								<a href="https://docs.mizuki.mysqil.com/press/file/" target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm text-primary hover:bg-primary/10">
+									编写帮助<ExternalLink className="size-3.5" />
+								</a>
+								{!isNewRef.current && <Button disabled={loading} onClick={handleRename}>重命名</Button>}
+								{showReload && (
+									<ConfirmDialog
+										trigger={<Button icon={<RefreshCw className="size-4" />} disabled={loading}>{isNewRef.current ? '恢复默认' : '重载内容'}</Button>}
+										title={isNewRef.current ? '恢复默认内容？' : '重载服务器内容？'}
+										description="当前本地草稿将被覆盖。"
+										onConfirm={reloadContent}
+									/>
+								)}
+								<Button variant="default" icon={<Save className="size-4" />} loading={loading} onClick={throttledSave}>保存</Button>
+							</>
+						)}
 					</>
-				)
-			}
-		>
-			<Spin spinning={loading}>
-				<div className={styles.cardHeader}>
-					<Typography.Text type="secondary">{filenameRef.current}</Typography.Text>
-					{isEditingRef.current && showReload && (
-						<Popconfirm title={isNewRef.current ? '确定要恢复为新建的默认内容？' : '确定要重载为最新内容？'} onConfirm={reloadContent}>
-							<Button loading={loading} size="small" icon={<ReloadOutlined />}>
-								{isNewRef.current ? '恢复默认' : '内容重载'}
-							</Button>
-						</Popconfirm>
-					)}
-				</div>
-				<Input.TextArea
-					readOnly={!isEditingRef.current}
+				}
+			/>
+
+			<PageSection
+				title="Markdown 文档"
+				description={isEditingRef.current && showReload ? '本地草稿尚未同步到服务器' : filenameRef.current}
+				bodyClassName="relative p-0"
+			>
+				<MDEditor
 					value={content}
 					onChange={onChange}
-					autoSize={{ minRows: 25 }}
-					className={styles.editorTextarea}
-					placeholder={isEditing ? POST_FRONT_MATTER : '还没有任何内容哦~'}
+					preview={isEditingRef.current ? 'live' : 'preview'}
+					hideToolbar={!isEditingRef.current}
+					visibleDragbar={isEditingRef.current}
+					readOnly={!isEditingRef.current}
+					placeholder={isEditingRef.current ? POST_FRONT_MATTER : '还没有任何内容哦~'}
+					disabled={loading}
+					height="calc(100vh - 18rem)"
+					minHeight={420}
+					className="min-h-[calc(100vh-18rem)] !rounded-none !shadow-none"
 				/>
-			</Spin>
-		</Card>
+				{loading && (
+					<div className="absolute inset-0 grid place-items-center bg-background/60 backdrop-blur-[1px]">
+						<LoaderCircle className="size-7 animate-spin text-primary" />
+					</div>
+				)}
+			</PageSection>
+		</Page>
 	)
 }
 
@@ -387,7 +378,7 @@ export default function Post() {
 	return (
 		<Routes>
 			<Route path="/" element={<PostList />} />
-			<Route path="/edit/:filename" element={<PostEditor isEditing={true} />} />
+			<Route path="/edit/:filename" element={<PostEditor isEditing />} />
 			<Route path="/view/:filename" element={<PostEditor />} />
 		</Routes>
 	)
