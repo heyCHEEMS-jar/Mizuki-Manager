@@ -1,15 +1,36 @@
 {
 	"compilerOptions": {
-		"types": ["react", "react-dom", "sass-loader"],
-		"jsx": "react",
+		"types": [
+			"react",
+			"react-dom"
+		],
+		"jsx": "react-jsx",
 		"target": "esnext",
 		"module": "esnext",
-		"lib": ["DOM", "DOM.Iterable", "ESNext"],
+		"lib": [
+			"DOM",
+			"DOM.Iterable",
+			"ESNext"
+		],
 		"allowJs": true,
 		"skipLibCheck": true,
 		"esModuleInterop": true,
-		"moduleResolution": "bundler"
+		"moduleResolution": "bundler",
+		"ignoreDeprecations": "6.0",
+		"baseUrl": ".",
+		"paths": {
+			"@/*": [
+				"src/*"
+			]
+		}
 	},
-	"include": ["src/**/*"],
-	"exclude": ["node_modules", "dist", "build", "public"]
+	"include": [
+		"src/**/*"
+	],
+	"exclude": [
+		"node_modules",
+		"dist",
+		"build",
+		"public"
+	]
 }

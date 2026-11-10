@@ -1,38 +1,34 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { Copy, LoaderCircle, Pencil, Plus, RefreshCw, Save, Trash2, Upload as UploadIcon } from 'lucide-react'
+import { Page, PageHeader, PageSection } from '../components/Page'
 import {
-	Card,
 	Form,
+	FormField,
+	useForm,
+	useFormWatch,
 	Input,
-	InputNumber,
+	NumberInput,
 	Switch,
 	Select,
 	Button,
-	message,
-	Space,
-	Typography,
-	Spin,
-	Popconfirm,
-	Collapse,
-	Row,
-	Col,
+	Accordion,
 	Divider,
 	Empty,
-	Modal,
-	Tag,
-	Flex,
-	CollapseProps,
+	Dialog,
+	Badge,
+	type AccordionProps,
 	Image,
-	Upload
-} from 'antd'
-import { SaveOutlined, SettingOutlined, ReloadOutlined, PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined } from '@ant-design/icons'
+	Textarea,
+	Upload,
+	ConfirmDialog
+} from '../components/ui'
 import { getConfigData, uploadAvatarImage, uploadHomeImage, uploadMobileWallpapers, uploadPCWallpapers, writeConfigData } from '../services/config'
 import { debounce, deepMerge, throttle, unwrap, wrap } from '../utils/util'
 import { useConfigContentDB } from '../hooks/useConfigContentDB'
 import { imageAccept } from '../configs/upload-config'
 import { Icon } from '@iconify/react'
-import styles from '../styles/pages/config.module.scss'
-
-const { TextArea } = Input
+import { notify } from '../lib/notify'
+import { cn } from '../lib/utils'
 
 interface EditableListProps {
 	value?: any[]
@@ -40,8 +36,8 @@ interface EditableListProps {
 	itemRender?: (item: any, index: number, onEdit: () => void, onDelete: () => void) => React.ReactNode
 	addButtonText?: string
 	emptyText?: string
-	modalTitle?: string
-	modalFields?: (form: any, iconValue: string) => React.ReactNode
+	dialogTitle?: string
+	dialogFields?: (form: any, iconValue: string) => React.ReactNode
 }
 
 // 默认值
@@ -230,18 +226,25 @@ const featurePages = [
 	{ name: '设备', key: 'devices' }
 ]
 
+const CopyText = ({ value, className }: { value: string; className?: string }) => (
+	<button
+		type="button"
+		className={cn('inline-flex min-w-0 items-center gap-1 text-left text-sm hover:text-primary', className)}
+		title={value}
+		onClick={() => navigator.clipboard.writeText(value).then(() => notify.success('已复制到剪切板')).catch(() => notify.error('复制失败'))}
+	>
+		<span className="truncate">{value}</span><Copy className="size-3 shrink-0" />
+	</button>
+)
+
 const CustomList: React.FC<{
 	dataSource: any[]
 	renderItem: (item: any, index: number) => React.ReactNode
-}> = ({ dataSource, renderItem }) => {
-	return (
-		<Flex vertical gap="small">
-			{dataSource.map((item, idx) => (
-				<div key={idx}>{renderItem(item, idx)}</div>
-			))}
-		</Flex>
-	)
-}
+}> = ({ dataSource, renderItem }) => (
+	<div className="space-y-1">
+		{dataSource.map((item, index) => <div key={index}>{renderItem(item, index)}</div>)}
+	</div>
+)
 
 const EditableList: React.FC<EditableListProps> = ({
 	value = [],
@@ -249,34 +252,34 @@ const EditableList: React.FC<EditableListProps> = ({
 	itemRender,
 	addButtonText = '添加',
 	emptyText = '暂无数据',
-	modalTitle = '编辑项',
-	modalFields
+	dialogTitle = '编辑项',
+	dialogFields
 }) => {
-	const [modalVisible, setModalVisible] = useState(false)
+	const [dialogVisible, setDialogVisible] = useState(false)
 	const [editingIndex, setEditingIndex] = useState<number | null>(null)
-	const [form] = Form.useForm()
+	const form = useForm()
 
-	const iconValue = Form.useWatch('icon', form)
+	const iconValue = useFormWatch('icon', form)
 
 	const handleAdd = () => {
 		setEditingIndex(null)
-		form.resetFields()
-		form.setFieldsValue({ name: '', icon: '', url: '' })
-		setModalVisible(true)
+		form.reset()
+		form.setValues({ name: '', icon: '', url: '' })
+		setDialogVisible(true)
 	}
 	const handleEdit = (index: number) => {
 		setEditingIndex(index)
-		form.setFieldsValue(value[index])
-		setModalVisible(true)
+		form.setValues(value[index])
+		setDialogVisible(true)
 	}
 	const handleDelete = (index: number) => {
 		const newList = [...value]
 		newList.splice(index, 1)
 		onChange?.(newList)
 	}
-	const handleOk = async () => {
+	const handleDialogSave = async () => {
 		try {
-			const values = await form.validateFields()
+			const values = await form.validate()
 			const newList = [...value]
 			if (editingIndex === null) {
 				newList.push(values)
@@ -284,7 +287,7 @@ const EditableList: React.FC<EditableListProps> = ({
 				newList[editingIndex] = values
 			}
 			onChange?.(newList)
-			setModalVisible(false)
+			setDialogVisible(false)
 		} catch (err) {
 			console.error(err)
 		}
@@ -298,8 +301,8 @@ const EditableList: React.FC<EditableListProps> = ({
 				<CustomList
 					dataSource={value}
 					renderItem={(item, idx) => (
-						<div className={styles.listItem}>
-							<div className={styles.listItemContent}>
+						<div className="flex items-center justify-between gap-3 border-b py-2 last:border-b-0">
+							<div className="min-w-0 flex-1">
 								{itemRender ? (
 									itemRender(
 										item,
@@ -308,35 +311,38 @@ const EditableList: React.FC<EditableListProps> = ({
 										() => handleDelete(idx)
 									)
 								) : (
-									<Typography.Text ellipsis>{JSON.stringify(item)}</Typography.Text>
+									<span className="block truncate text-sm" title={JSON.stringify(item)}>{JSON.stringify(item)}</span>
 								)}
 							</div>
-							<Space>
-								<Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(idx)} />
-								<Popconfirm title="确定删除？" onConfirm={() => handleDelete(idx)}>
-									<Button size="small" danger icon={<DeleteOutlined />} />
-								</Popconfirm>
-							</Space>
+							<div className="flex items-center gap-1">
+								<Button variant="ghost" size="small" className="size-8 px-0" icon={<Pencil className="size-4" />} aria-label="编辑" onClick={() => handleEdit(idx)} />
+								<ConfirmDialog
+									trigger={<Button variant="ghost" size="small" className="size-8 px-0 text-destructive hover:bg-destructive/10" icon={<Trash2 className="size-4" />} aria-label="删除" />}
+									title="删除此项？"
+									confirmLabel="删除"
+									variant="destructive"
+									onConfirm={() => handleDelete(idx)}
+								/>
+							</div>
 						</div>
 					)}
 				/>
 			)}
-			<Button type="dashed" block icon={<PlusOutlined />} onClick={handleAdd} className={styles.addButton}>
+			<Button variant="outline" block icon={<Plus className="size-4" />} onClick={handleAdd} className="mt-2 border-dashed">
 				{addButtonText}
 			</Button>
-			<Modal
-				destroyOnHidden
-				mask={{ closable: false }}
-				title={modalTitle}
-				open={modalVisible}
-				onOk={handleOk}
-				onCancel={() => setModalVisible(false)}
+			<Dialog
+				closeOnOutside={false}
+				title={dialogTitle}
+				open={dialogVisible}
+				onSubmit={handleDialogSave}
+				onCancel={() => setDialogVisible(false)}
 				width={600}
 			>
-				<Form form={form} layout="vertical">
-					{modalFields?.(form, iconValue)}
+				<Form form={form}>
+					{dialogFields?.(form, iconValue)}
 				</Form>
-			</Modal>
+			</Dialog>
 		</>
 	)
 }
@@ -347,7 +353,7 @@ const StringListEditor: React.FC<{
 	addText?: string
 	imageMode?: boolean
 	uploadImage?: (file: File, fileList: File[], onSuccess?: (urls: string[]) => void) => Promise<boolean>
-}> = ({ value = [], onChange, addText = '添加', imageMode = false, uploadImage = () => false }) => {
+}> = ({ value = [], onChange, addText = '添加', imageMode = false, uploadImage = async () => false }) => {
 	const [inputVal, setInputVal] = useState('')
 
 	const addItem = () => {
@@ -368,55 +374,43 @@ const StringListEditor: React.FC<{
 
 	return (
 		<>
-			<Space wrap className={styles.tagSpace}>
-				{value.map((item, i) => (
-					<div className={styles.tagItem}>
-						{imageMode && <Image loading="lazy" width={70} height={70} className={styles.tagImage} src={item} alt={item} />}
-						<Tag key={i} closable onClose={() => removeItem(i)} className={styles.tag}>
-							<Typography.Text ellipsis={{ tooltip: item }}>{item}</Typography.Text>
-						</Tag>
+			<div className="mb-3 flex flex-wrap gap-3">
+				{value.map((item, index) => (
+					<div key={`${item}-${index}`} className="flex max-w-full items-center gap-2 rounded-lg border bg-muted/20 p-2">
+						{imageMode && <Image loading="lazy" width={70} height={70} className="rounded object-contain" src={item} alt={item} />}
+						<span className="max-w-44 truncate text-sm" title={item}>{item}</span>
+						<button type="button" className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label="移除" onClick={() => removeItem(index)}><Trash2 className="size-3.5" /></button>
 					</div>
 				))}
-			</Space>
-			<Space.Compact className={styles.fullWidth}>
-				<Input value={inputVal} onChange={(e) => setInputVal(e.target.value)} placeholder="输入内容后添加" />
+			</div>
+			<div className="flex w-full flex-col gap-2 sm:flex-row">
+				<Input value={inputVal} onChange={(event) => setInputVal(event.target.value)} placeholder="输入内容后添加" />
 				{imageMode && (
-					<Upload
-						accept={imageAccept}
-						beforeUpload={(file: File, fileList: File[]) => uploadImage(file, fileList, (urls) => uploadItem(urls))}
-						showUploadList={false}
-						multiple
-					>
-						<Button>
-							<UploadOutlined />
-							<span>上传</span>
-						</Button>
+					<Upload accept={imageAccept} beforeUpload={(file, fileList) => uploadImage(file, fileList, uploadItem)} multiple>
+						<Button className="w-full sm:w-auto" icon={<UploadIcon className="size-4" />}>上传</Button>
 					</Upload>
 				)}
-				<Button onClick={addItem}>
-					<PlusOutlined />
-					<span>{addText}</span>
-				</Button>
-			</Space.Compact>
+				<Button className="w-full sm:w-auto" icon={<Plus className="size-4" />} onClick={addItem}>{addText}</Button>
+			</div>
 		</>
 	)
 }
 
-const collapseItems = (
+const settingsSections = (
 	uploadHomeImg: (file: File, fileList: File[], onSuccess?: (url: string) => void) => Promise<boolean>,
 	uploadAvatar: (file: File, fileList: File[], onSuccess?: (url: string) => void) => Promise<boolean>,
 	uploadPCWallpaperImages: (file: File, fileList: File[], onSuccess?: (urls: string[]) => void) => Promise<boolean>,
 	uploadMobileWallpaperImages: (file: File, fileList: File[], onSuccess?: (urls: string[]) => void) => Promise<boolean>
-): CollapseProps['items'] => [
+): AccordionProps['items'] => [
 	// 基础配置
 	{
 		key: 'basic',
 		label: '基础配置',
 
 		children: (
-			<Row gutter={[8, 0]}>
-				<Col xs={24} md={12}>
-					<Form.Item name="SITE_LANG" label="站点语言">
+			<div className="grid gap-x-4 md:grid-cols-12">
+				<div className="md:col-span-6">
+					<FormField name="SITE_LANG" label="站点语言">
 						<Select
 							options={[
 								{ label: '简体中文', value: 'zh_CN' },
@@ -424,14 +418,14 @@ const collapseItems = (
 								{ label: '日本語', value: 'ja' }
 							]}
 						/>
-					</Form.Item>
-				</Col>
-				<Col xs={24} md={12}>
-					<Form.Item name="SITE_TIMEZONE" label="时区偏移(-12~12, 例如中国为+8)">
-						<InputNumber min={-12} max={12} className={styles.fullWidth} />
-					</Form.Item>
-				</Col>
-			</Row>
+					</FormField>
+				</div>
+				<div className="md:col-span-6">
+					<FormField name="SITE_TIMEZONE" label="时区偏移(-12~12, 例如中国为+8)">
+						<NumberInput min={-12} max={12} className="w-full" />
+					</FormField>
+				</div>
+			</div>
 		)
 	},
 	// 站点外观
@@ -441,134 +435,132 @@ const collapseItems = (
 
 		children: (
 			<>
-				<Row gutter={[8, 0]}>
-					<Col xs={24} md={12}>
-						<Form.Item name={['siteConfig', 'title']} label="站点标题">
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'title']} label="站点标题">
 							<Input />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['siteConfig', 'subtitle']} label="副标题">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'subtitle']} label="副标题">
 							<Input />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['siteConfig', 'siteStartDate']} label="建站日期">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'siteStartDate']} label="建站日期">
 							<Input placeholder="2026-01-01" />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['siteConfig', 'themeColor', 'hue']} label="主题色色相">
-							<InputNumber min={0} max={360} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-					<Col span={24}>
-						<Form.Item name={['siteConfig', 'siteURL']} label="站点URL">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'themeColor', 'hue']} label="主题色色相">
+							<NumberInput min={0} max={360} className="w-full" />
+						</FormField>
+					</div>
+					<div className="md:col-span-12">
+						<FormField name={['siteConfig', 'siteURL']} label="站点URL">
 							<Input />
-						</Form.Item>
-					</Col>
-					<Col span={24}>
-						<Form.Item name={['siteConfig', 'themeColor', 'fixed']} label="固定主题色" valuePropName="checked">
+						</FormField>
+					</div>
+					<div className="md:col-span-12">
+						<FormField name={['siteConfig', 'themeColor', 'fixed']} label="固定主题色" valueKey="checked">
 							<Switch />
-						</Form.Item>
-					</Col>
-				</Row>
+						</FormField>
+					</div>
+				</div>
 				<Divider orientation="horizontal">功能页面</Divider>
-				<Row gutter={[8, 0]}>
+				<div className="grid gap-x-4 md:grid-cols-12">
 					{featurePages.map((f) => (
-						<Col span={6} key={f.key}>
-							<Form.Item name={['siteConfig', 'featurePages', f.key]} label={f.name} valuePropName="checked">
+						<div className="md:col-span-3" key={f.key}>
+							<FormField name={['siteConfig', 'featurePages', f.key]} label={f.name} valueKey="checked">
 								<Switch />
-							</Form.Item>
-						</Col>
+							</FormField>
+						</div>
 					))}
-				</Row>
+				</div>
 				<Divider orientation="horizontal">导航栏标题</Divider>
-				<Row gutter={[8, 0]}>
-					<Col span={12}>
-						<Form.Item name={['siteConfig', 'navbarTitle', 'mode']} label="模式">
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'navbarTitle', 'mode']} label="模式">
 							<Select
 								options={[
 									{ label: '仅显示Logo', value: 'logo' },
 									{ label: '显示Logo+文本', value: 'text-icon' }
 								]}
 							/>
-						</Form.Item>
-					</Col>
-					<Col span={12}>
-						<Form.Item name={['siteConfig', 'navbarTitle', 'text']} label="文字">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'navbarTitle', 'text']} label="文字">
 							<Input />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item label="图标路径" className={styles.formItemNoMargin}>
-							<Space.Compact className={styles.fullWidth}>
-								<Form.Item name={['siteConfig', 'navbarTitle', 'icon']} noStyle>
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField label="图标路径" className="mb-2">
+							<div className="flex w-full gap-2">
+								<FormField name={['siteConfig', 'navbarTitle', 'icon']} unstyled>
 									<Input placeholder="例如: assets/home/home.png" />
-								</Form.Item>
-								<Form.Item noStyle shouldUpdate={(prev, cur) => prev?.siteConfig?.navbarTitle?.icon !== cur?.siteConfig?.navbarTitle?.icon}>
-									{({ setFieldValue }) => (
+								</FormField>
+								<FormField unstyled observe={(prev, cur) => prev?.siteConfig?.navbarTitle?.icon !== cur?.siteConfig?.navbarTitle?.icon}>
+									{({ setValue }) => (
 										<Upload
 											accept={imageAccept}
 											beforeUpload={(file: File, fileList: File[]) => {
-												uploadHomeImg(file, fileList, (url) => setFieldValue(['siteConfig', 'navbarTitle', 'icon'], url))
+												uploadHomeImg(file, fileList, (url) => setValue(['siteConfig', 'navbarTitle', 'icon'], url))
 											}}
-											showUploadList={false}
 										>
 											<Button>
-												<UploadOutlined />
+												<UploadIcon className="size-4" />
 												<span>上传</span>
 											</Button>
 										</Upload>
 									)}
-								</Form.Item>
-							</Space.Compact>
-						</Form.Item>
-						<Form.Item noStyle shouldUpdate={(prev, cur) => prev?.siteConfig?.navbarTitle?.icon !== cur?.siteConfig?.navbarTitle?.icon}>
-							{({ getFieldValue }) => {
-								const url = getFieldValue(['siteConfig', 'navbarTitle', 'icon'])
-								return <Image loading="lazy" width="100%" height={80} className={styles.previewImage} src={url} alt={url} />
+								</FormField>
+							</div>
+						</FormField>
+						<FormField unstyled observe={(prev, cur) => prev?.siteConfig?.navbarTitle?.icon !== cur?.siteConfig?.navbarTitle?.icon}>
+							{({ getValue }) => {
+								const url = getValue(['siteConfig', 'navbarTitle', 'icon'])
+								return <Image loading="lazy" width="100%" height={80} className="object-contain" src={url} alt={url} />
 							}}
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item label="Logo路径" className={styles.formItemNoMargin}>
-							<Space.Compact className={styles.fullWidth}>
-								<Form.Item name={['siteConfig', 'navbarTitle', 'logo']} noStyle>
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField label="Logo路径" className="mb-2">
+							<div className="flex w-full gap-2">
+								<FormField name={['siteConfig', 'navbarTitle', 'logo']} unstyled>
 									<Input placeholder="例如: assets/home/default-logo.png" />
-								</Form.Item>
-								<Form.Item noStyle shouldUpdate={(prev, cur) => prev?.siteConfig?.navbarTitle?.logo !== cur?.siteConfig?.navbarTitle?.logo}>
-									{({ setFieldValue }) => (
+								</FormField>
+								<FormField unstyled observe={(prev, cur) => prev?.siteConfig?.navbarTitle?.logo !== cur?.siteConfig?.navbarTitle?.logo}>
+									{({ setValue }) => (
 										<Upload
 											accept={imageAccept}
 											beforeUpload={(file: File, fileList: File[]) => {
-												uploadHomeImg(file, fileList, (url) => setFieldValue(['siteConfig', 'navbarTitle', 'logo'], url))
+												uploadHomeImg(file, fileList, (url) => setValue(['siteConfig', 'navbarTitle', 'logo'], url))
 											}}
-											showUploadList={false}
 										>
 											<Button>
-												<UploadOutlined />
+												<UploadIcon className="size-4" />
 												<span>上传</span>
 											</Button>
 										</Upload>
 									)}
-								</Form.Item>
-							</Space.Compact>
-						</Form.Item>
-						<Form.Item noStyle shouldUpdate={(prev, cur) => prev?.siteConfig?.navbarTitle?.logo !== cur?.siteConfig?.navbarTitle?.logo}>
-							{({ getFieldValue }) => {
-								const url = getFieldValue(['siteConfig', 'navbarTitle', 'logo'])
-								return <Image loading="lazy" width="100%" height={80} className={styles.previewImage} src={url} alt={url} />
+								</FormField>
+							</div>
+						</FormField>
+						<FormField unstyled observe={(prev, cur) => prev?.siteConfig?.navbarTitle?.logo !== cur?.siteConfig?.navbarTitle?.logo}>
+							{({ getValue }) => {
+								const url = getValue(['siteConfig', 'navbarTitle', 'logo'])
+								return <Image loading="lazy" width="100%" height={80} className="object-contain" src={url} alt={url} />
 							}}
-						</Form.Item>
-					</Col>
-				</Row>
-				<Form.Item name={['siteConfig', 'showLastModified']} valuePropName="checked" label="显示最后修改时间">
+						</FormField>
+					</div>
+				</div>
+				<FormField name={['siteConfig', 'showLastModified']} valueKey="checked" label="显示最后修改时间">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['siteConfig', 'generateOgImages']} valuePropName="checked" label="生成OpenGraph图片">
+				</FormField>
+				<FormField name={['siteConfig', 'generateOgImages']} valueKey="checked" label="生成OpenGraph图片">
 					<Switch />
-				</Form.Item>
+				</FormField>
 			</>
 		)
 	},
@@ -578,9 +570,9 @@ const collapseItems = (
 		label: '全屏壁纸',
 
 		children: (
-			<Row gutter={[8, 0]}>
-				<Col xs={24} md={8}>
-					<Form.Item name={['fullscreenWallpaperConfig', 'position']} label="壁纸位置">
+			<div className="grid gap-x-4 md:grid-cols-12">
+				<div className="md:col-span-4">
+					<FormField name={['fullscreenWallpaperConfig', 'position']} label="壁纸位置">
 						<Select
 							options={[
 								{ label: '居中', value: 'center' },
@@ -590,44 +582,44 @@ const collapseItems = (
 								{ label: '右侧', value: 'right' }
 							]}
 						/>
-					</Form.Item>
-				</Col>
-				<Col xs={24} md={8}>
-					<Form.Item name={['fullscreenWallpaperConfig', 'opacity']} label="透明度">
-						<InputNumber min={0} max={1} step={0.1} className={styles.fullWidth} />
-					</Form.Item>
-				</Col>
-				<Col xs={24} md={8}>
-					<Form.Item name={['fullscreenWallpaperConfig', 'blur']} label="模糊度">
-						<InputNumber min={0} max={10} className={styles.fullWidth} />
-					</Form.Item>
-				</Col>
-				<Col span={24}>
-					<Form.Item label="桌面端壁纸" name={['fullscreenWallpaperConfig', 'src', 'desktop']}>
+					</FormField>
+				</div>
+				<div className="md:col-span-4">
+					<FormField name={['fullscreenWallpaperConfig', 'opacity']} label="透明度">
+						<NumberInput min={0} max={1} step={0.1} className="w-full" />
+					</FormField>
+				</div>
+				<div className="md:col-span-4">
+					<FormField name={['fullscreenWallpaperConfig', 'blur']} label="模糊度">
+						<NumberInput min={0} max={10} className="w-full" />
+					</FormField>
+				</div>
+				<div className="md:col-span-12">
+					<FormField label="桌面端壁纸" name={['fullscreenWallpaperConfig', 'src', 'desktop']}>
 						<StringListEditor imageMode={true} uploadImage={uploadPCWallpaperImages} />
-					</Form.Item>
-				</Col>
-				<Col span={24}>
-					<Form.Item label="移动端壁纸" name={['fullscreenWallpaperConfig', 'src', 'mobile']}>
+					</FormField>
+				</div>
+				<div className="md:col-span-12">
+					<FormField label="移动端壁纸" name={['fullscreenWallpaperConfig', 'src', 'mobile']}>
 						<StringListEditor imageMode={true} uploadImage={uploadMobileWallpaperImages} />
-					</Form.Item>
-				</Col>
-				<Col span={24}>
-					<Form.Item name={['fullscreenWallpaperConfig', 'carousel', 'enable']} valuePropName="checked" label="轮播开关">
+					</FormField>
+				</div>
+				<div className="md:col-span-12">
+					<FormField name={['fullscreenWallpaperConfig', 'carousel', 'enable']} valueKey="checked" label="轮播开关">
 						<Switch />
-					</Form.Item>
-				</Col>
-				<Col xs={24} md={12}>
-					<Form.Item name={['fullscreenWallpaperConfig', 'carousel', 'interval']} label="轮播间隔(秒)">
-						<InputNumber min={1} className={styles.fullWidth} />
-					</Form.Item>
-				</Col>
-				<Col xs={24} md={12}>
-					<Form.Item name={['fullscreenWallpaperConfig', 'zIndex']} label="层级">
-						<InputNumber className={styles.fullWidth} />
-					</Form.Item>
-				</Col>
-			</Row>
+					</FormField>
+				</div>
+				<div className="md:col-span-6">
+					<FormField name={['fullscreenWallpaperConfig', 'carousel', 'interval']} label="轮播间隔(秒)">
+						<NumberInput min={1} className="w-full" />
+					</FormField>
+				</div>
+				<div className="md:col-span-6">
+					<FormField name={['fullscreenWallpaperConfig', 'zIndex']} label="层级">
+						<NumberInput className="w-full" />
+					</FormField>
+				</div>
+			</div>
 		)
 	},
 	// 横幅配置
@@ -637,18 +629,18 @@ const collapseItems = (
 		children: (
 			<>
 				{/* 横幅图片 */}
-				<Form.Item label="桌面端横幅" name={['siteConfig', 'banner', 'src', 'desktop']}>
+				<FormField label="桌面端横幅" name={['siteConfig', 'banner', 'src', 'desktop']}>
 					<StringListEditor imageMode={true} uploadImage={uploadPCWallpaperImages} />
-				</Form.Item>
-				<Form.Item label="移动端横幅" name={['siteConfig', 'banner', 'src', 'mobile']}>
+				</FormField>
+				<FormField label="移动端横幅" name={['siteConfig', 'banner', 'src', 'mobile']}>
 					<StringListEditor imageMode={true} uploadImage={uploadMobileWallpaperImages} />
-				</Form.Item>
+				</FormField>
 
 				<Divider orientation="horizontal">基础设置</Divider>
 
-				<Row gutter={[8, 0]}>
-					<Col xs={24} md={12}>
-						<Form.Item name={['siteConfig', 'banner', 'position']} label="图片位置">
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'banner', 'position']} label="图片位置">
 							<Select
 								options={[
 									{ label: '居中', value: 'center' },
@@ -656,10 +648,10 @@ const collapseItems = (
 									{ label: '底部', value: 'bottom' }
 								]}
 							/>
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['siteConfig', 'banner', 'navbar', 'transparentMode']} label="导航栏透明模式">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'banner', 'navbar', 'transparentMode']} label="导航栏透明模式">
 							<Select
 								options={[
 									{ label: '半透明+圆角', value: 'semi' },
@@ -667,106 +659,106 @@ const collapseItems = (
 									{ label: '动态透明', value: 'semifull' }
 								]}
 							/>
-						</Form.Item>
-					</Col>
-				</Row>
+						</FormField>
+					</div>
+				</div>
 
 				{/* 轮播配置 */}
 				<Divider orientation="horizontal">轮播配置</Divider>
 
-				<Form.Item name={['siteConfig', 'banner', 'carousel', 'enable']} valuePropName="checked" label="启用轮播">
+				<FormField name={['siteConfig', 'banner', 'carousel', 'enable']} valueKey="checked" label="启用轮播">
 					<Switch />
-				</Form.Item>
+				</FormField>
 
-				<Form.Item name={['siteConfig', 'banner', 'carousel', 'interval']} label="轮播间隔(秒)">
-					<InputNumber min={1} />
-				</Form.Item>
+				<FormField name={['siteConfig', 'banner', 'carousel', 'interval']} label="轮播间隔(秒)">
+					<NumberInput min={1} />
+				</FormField>
 
 				{/* 水波纹效果 */}
 				<Divider orientation="horizontal">水波纹效果</Divider>
 
-				<Form.Item name={['siteConfig', 'banner', 'waves', 'enable']} valuePropName="checked" label="启用水波纹">
+				<FormField name={['siteConfig', 'banner', 'waves', 'enable']} valueKey="checked" label="启用水波纹">
 					<Switch />
-				</Form.Item>
+				</FormField>
 
-				<Row gutter={[8, 0]}>
-					<Col xs={24} md={12}>
-						<Form.Item name={['siteConfig', 'banner', 'waves', 'performanceMode']} valuePropName="checked" label="性能模式">
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'banner', 'waves', 'performanceMode']} valueKey="checked" label="性能模式">
 							<Switch />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['siteConfig', 'banner', 'waves', 'mobileDisable']} valuePropName="checked" label="移动端禁用">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['siteConfig', 'banner', 'waves', 'mobileDisable']} valueKey="checked" label="移动端禁用">
 							<Switch />
-						</Form.Item>
-					</Col>
-				</Row>
+						</FormField>
+					</div>
+				</div>
 
 				{/* 图片API */}
 				<Divider orientation="horizontal">图片API (PicFlow)</Divider>
 
-				<Form.Item name={['siteConfig', 'banner', 'imageApi', 'enable']} valuePropName="checked" label="启用图片API">
+				<FormField name={['siteConfig', 'banner', 'imageApi', 'enable']} valueKey="checked" label="启用图片API">
 					<Switch />
-				</Form.Item>
+				</FormField>
 
-				<Form.Item name={['siteConfig', 'banner', 'imageApi', 'url']} label="API地址">
+				<FormField name={['siteConfig', 'banner', 'imageApi', 'url']} label="API地址">
 					<Input placeholder="http://domain.com/api_v2.php?format=text&count=4" />
-				</Form.Item>
+				</FormField>
 
 				{/* 主页文字配置 */}
 				<Divider orientation="horizontal">主页文字</Divider>
 
-				<Form.Item name={['siteConfig', 'banner', 'homeText', 'enable']} valuePropName="checked" label="启用主页文字">
+				<FormField name={['siteConfig', 'banner', 'homeText', 'enable']} valueKey="checked" label="启用主页文字">
 					<Switch />
-				</Form.Item>
+				</FormField>
 
-				<Form.Item name={['siteConfig', 'banner', 'homeText', 'title']} label="主标题">
+				<FormField name={['siteConfig', 'banner', 'homeText', 'title']} label="主标题">
 					<Input placeholder="输入主标题" />
-				</Form.Item>
+				</FormField>
 
-				<Form.Item label="副标题列表" name={['siteConfig', 'banner', 'homeText', 'subtitle']}>
+				<FormField label="副标题列表" name={['siteConfig', 'banner', 'homeText', 'subtitle']}>
 					<StringListEditor addText="添加" />
-				</Form.Item>
+				</FormField>
 
 				{/* 打字机效果 */}
 				<Divider orientation="horizontal">打字机效果</Divider>
 
-				<Form.Item name={['siteConfig', 'banner', 'homeText', 'typewriter', 'enable']} valuePropName="checked" label="启用打字机效果">
+				<FormField name={['siteConfig', 'banner', 'homeText', 'typewriter', 'enable']} valueKey="checked" label="启用打字机效果">
 					<Switch />
-				</Form.Item>
+				</FormField>
 
-				<Row gutter={[8, 0]}>
-					<Col xs={24} md={8}>
-						<Form.Item name={['siteConfig', 'banner', 'homeText', 'typewriter', 'speed']} label="打字速度(ms)">
-							<InputNumber min={20} max={500} step={10} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={8}>
-						<Form.Item name={['siteConfig', 'banner', 'homeText', 'typewriter', 'deleteSpeed']} label="删除速度(ms)">
-							<InputNumber min={20} max={500} step={10} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={8}>
-						<Form.Item name={['siteConfig', 'banner', 'homeText', 'typewriter', 'pauseTime']} label="暂停时间(ms)">
-							<InputNumber min={500} max={10000} step={500} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-				</Row>
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-4">
+						<FormField name={['siteConfig', 'banner', 'homeText', 'typewriter', 'speed']} label="打字速度(ms)">
+							<NumberInput min={20} max={500} step={10} className="w-full" />
+						</FormField>
+					</div>
+					<div className="md:col-span-4">
+						<FormField name={['siteConfig', 'banner', 'homeText', 'typewriter', 'deleteSpeed']} label="删除速度(ms)">
+							<NumberInput min={20} max={500} step={10} className="w-full" />
+						</FormField>
+					</div>
+					<div className="md:col-span-4">
+						<FormField name={['siteConfig', 'banner', 'homeText', 'typewriter', 'pauseTime']} label="暂停时间(ms)">
+							<NumberInput min={500} max={10000} step={500} className="w-full" />
+						</FormField>
+					</div>
+				</div>
 
 				{/* 图片来源 */}
 				<Divider orientation="horizontal">图片来源</Divider>
 
-				<Form.Item name={['siteConfig', 'banner', 'credit', 'enable']} valuePropName="checked" label="显示图片来源">
+				<FormField name={['siteConfig', 'banner', 'credit', 'enable']} valueKey="checked" label="显示图片来源">
 					<Switch />
-				</Form.Item>
+				</FormField>
 
-				<Form.Item name={['siteConfig', 'banner', 'credit', 'text']} label="来源文本">
+				<FormField name={['siteConfig', 'banner', 'credit', 'text']} label="来源文本">
 					<Input placeholder="Describe" />
-				</Form.Item>
+				</FormField>
 
-				<Form.Item name={['siteConfig', 'banner', 'credit', 'url']} label="来源链接">
+				<FormField name={['siteConfig', 'banner', 'credit', 'url']} label="来源链接">
 					<Input placeholder="https://..." />
-				</Form.Item>
+				</FormField>
 			</>
 		)
 	},
@@ -775,46 +767,46 @@ const collapseItems = (
 		key: 'navbar',
 		label: '导航链接',
 		children: (
-			<Form.Item name={['navBarConfig', 'links', 2, 'children']}>
+			<FormField name={['navBarConfig', 'links', 2, 'children']}>
 				<EditableList
 					addButtonText="添加导航链接"
-					modalTitle="编辑导航链接"
-					modalFields={(_, iconValue) => (
+					dialogTitle="编辑导航链接"
+					dialogFields={(_, iconValue) => (
 						<>
-							<Form.Item name="name" label="名称" rules={[{ required: true }]}>
+							<FormField name="name" label="名称" rules={[{ required: true }]}>
 								<Input placeholder="请输入名称" />
-							</Form.Item>
-							<Form.Item
+							</FormField>
+							<FormField
 								name="icon"
 								label={
 									<>
 										<span>图标</span>
-										<a href={process.env.ICONIFY_URL} target="_blank">
+										<a href={process.env.ICONIFY_URL} target="_blank" rel="noreferrer">
 											&nbsp;访问 iconify
 										</a>
 									</>
 								}
 							>
 								<Input placeholder="例如: mdi:github" suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : <span />} />
-							</Form.Item>
-							<Form.Item name="url" label="链接" rules={[{ required: true }]}>
+							</FormField>
+							<FormField name="url" label="链接" rules={[{ required: true }]}>
 								<Input placeholder="请输入链接" />
-							</Form.Item>
-							<Form.Item name="external" label="外部链接" valuePropName="checked">
+							</FormField>
+							<FormField name="external" label="外部链接" valueKey="checked">
 								<Switch />
-							</Form.Item>
+							</FormField>
 						</>
 					)}
 					itemRender={(item) => (
-						<div className={styles.linkItem}>
-							<Tag>{item.name}</Tag>
+						<div className="flex min-w-0 items-center gap-2">
+							<Badge>{item.name}</Badge>
 							{item.icon && <Icon icon={item.icon} width={20} />}
-							<Typography.Text copyable>{item.url}</Typography.Text>
-							{item.external && <Tag>外链</Tag>}
+							<CopyText value={item.url} className="min-w-0" />
+							{item.external && <Badge>外链</Badge>}
 						</div>
 					)}
 				/>
-			</Form.Item>
+			</FormField>
 		)
 	},
 	// 个人资料
@@ -823,61 +815,60 @@ const collapseItems = (
 		label: '个人资料',
 		children: (
 			<>
-				<Form.Item label="头像路径" className={styles.formItemNoMargin}>
-					<Space.Compact className={styles.fullWidth}>
-						<Form.Item name={['profileConfig', 'avatar']} noStyle>
+				<FormField label="头像路径" className="mb-2">
+					<div className="flex w-full gap-2">
+						<FormField name={['profileConfig', 'avatar']} unstyled>
 							<Input placeholder="例如: assets/images/avatar.webp" />
-						</Form.Item>
-						<Form.Item noStyle shouldUpdate={(prev, cur) => prev?.profileConfig?.avatar !== cur?.profileConfig?.avatar}>
-							{({ setFieldValue }) => (
+						</FormField>
+						<FormField unstyled observe={(prev, cur) => prev?.profileConfig?.avatar !== cur?.profileConfig?.avatar}>
+							{({ setValue }) => (
 								<Upload
 									beforeUpload={(file: File, fileList: File[]) => {
-										uploadAvatar(file, fileList, (url) => setFieldValue(['profileConfig', 'avatar'], url))
+										uploadAvatar(file, fileList, (url) => setValue(['profileConfig', 'avatar'], url))
 									}}
-									showUploadList={false}
 								>
 									<Button>
-										<UploadOutlined />
+										<UploadIcon className="size-4" />
 										<span>上传</span>
 									</Button>
 								</Upload>
 							)}
-						</Form.Item>
-					</Space.Compact>
-				</Form.Item>
-				<Form.Item noStyle shouldUpdate={(prev, cur) => prev?.profileConfig?.avatar !== cur?.profileConfig?.avatar}>
-					{({ getFieldValue }) => {
-						const url = getFieldValue(['profileConfig', 'avatar'])
-						return <Image loading="lazy" width="100%" height={80} className={styles.previewImage} src={url} alt={url} />
+						</FormField>
+					</div>
+				</FormField>
+				<FormField unstyled observe={(prev, cur) => prev?.profileConfig?.avatar !== cur?.profileConfig?.avatar}>
+					{({ getValue }) => {
+						const url = getValue(['profileConfig', 'avatar'])
+						return <Image loading="lazy" width="100%" height={80} className="object-contain" src={url} alt={url} />
 					}}
-				</Form.Item>
-				<Form.Item name={['profileConfig', 'name']} label="昵称">
+				</FormField>
+				<FormField name={['profileConfig', 'name']} label="昵称">
 					<Input />
-				</Form.Item>
-				<Form.Item name={['profileConfig', 'bio']} label="简介">
-					<TextArea rows={3} />
-				</Form.Item>
-				<Form.Item name={['profileConfig', 'typewriter', 'enable']} valuePropName="checked" label="打字机效果">
+				</FormField>
+				<FormField name={['profileConfig', 'bio']} label="简介">
+					<Textarea rows={3} />
+				</FormField>
+				<FormField name={['profileConfig', 'typewriter', 'enable']} valueKey="checked" label="打字机效果">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['profileConfig', 'typewriter', 'speed']} label="打字速度(ms)">
-					<InputNumber min={20} max={500} step={10} />
-				</Form.Item>
-				<Form.Item name={['profileConfig', 'links']} label="社交链接">
+				</FormField>
+				<FormField name={['profileConfig', 'typewriter', 'speed']} label="打字速度(ms)">
+					<NumberInput min={20} max={500} step={10} />
+				</FormField>
+				<FormField name={['profileConfig', 'links']} label="社交链接">
 					<EditableList
 						addButtonText="添加链接"
-						modalTitle="编辑社交链接"
-						modalFields={(_, iconValue) => (
+						dialogTitle="编辑社交链接"
+						dialogFields={(_, iconValue) => (
 							<>
-								<Form.Item name="name" label="名称" rules={[{ required: true }]}>
+								<FormField name="name" label="名称" rules={[{ required: true }]}>
 									<Input placeholder="请输入名称" />
-								</Form.Item>
-								<Form.Item
+								</FormField>
+								<FormField
 									name="icon"
 									label={
 										<>
 											<span>图标</span>
-											<a href={process.env.ICONIFY_URL} target="_blank">
+											<a href={process.env.ICONIFY_URL} target="_blank" rel="noreferrer">
 												&nbsp;访问 iconify
 											</a>
 										</>
@@ -885,25 +876,21 @@ const collapseItems = (
 									rules={[{ required: true }]}
 								>
 									<Input placeholder="例如: fa7-brands:github" suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : <span />} />
-								</Form.Item>
-								<Form.Item name="url" label="链接" rules={[{ required: true }]}>
+								</FormField>
+								<FormField name="url" label="链接" rules={[{ required: true }]}>
 									<Input placeholder="请输入链接" />
-								</Form.Item>
+								</FormField>
 							</>
 						)}
 						itemRender={(item) => (
-							<div className={styles.linkItem}>
-								<Tag className={styles.linkTag}>
-									<Typography.Text ellipsis={{ tooltip: item.name }}>{item.name}</Typography.Text>
-								</Tag>
-								<Icon icon={item.icon} fontSize={20}></Icon>
-								<Typography.Text className={styles.linkUrl} copyable ellipsis={{ tooltip: item.url }}>
-									{item.url}
-								</Typography.Text>
+							<div className="flex min-w-0 items-center gap-2">
+								<Badge><span className="block max-w-24 truncate" title={item.name}>{item.name}</span></Badge>
+								<Icon icon={item.icon} fontSize={20} />
+								<CopyText value={item.url} className="min-w-0 flex-1" />
 							</div>
 						)}
 					/>
-				</Form.Item>
+				</FormField>
 			</>
 		)
 	},
@@ -914,40 +901,40 @@ const collapseItems = (
 
 		children: (
 			<>
-				<Form.Item name={['musicPlayerConfig', 'enable']} valuePropName="checked" label="启用">
+				<FormField name={['musicPlayerConfig', 'enable']} valueKey="checked" label="启用">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['musicPlayerConfig', 'showFloatingPlayer']} valuePropName="checked" label="显示悬浮播放器">
+				</FormField>
+				<FormField name={['musicPlayerConfig', 'showFloatingPlayer']} valueKey="checked" label="显示悬浮播放器">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['musicPlayerConfig', 'floatingEntryMode']} label="悬浮入口模式">
+				</FormField>
+				<FormField name={['musicPlayerConfig', 'floatingEntryMode']} label="悬浮入口模式">
 					<Select
 						options={[
 							{ label: '独立悬浮播放器', value: 'default' },
 							{ label: '集成到通用FAB', value: 'fab' }
 						]}
 					/>
-				</Form.Item>
-				<Form.Item name={['musicPlayerConfig', 'mode']} label="播放源">
+				</FormField>
+				<FormField name={['musicPlayerConfig', 'mode']} label="播放源">
 					<Select
 						options={[
 							{ label: '本地', value: 'local' },
 							{ label: 'Meting', value: 'meting' }
 						]}
 					/>
-				</Form.Item>
-				<Form.Item name={['musicPlayerConfig', 'meting_api']} label="Meting API地址">
+				</FormField>
+				<FormField name={['musicPlayerConfig', 'meting_api']} label="Meting API地址">
 					<Input placeholder="https://meting.mysqil.com/api?server=:server&type=:type&id=:id&auth=:auth&r=:r" />
-				</Form.Item>
-				<Form.Item name={['musicPlayerConfig', 'id']} label="歌单ID">
+				</FormField>
+				<FormField name={['musicPlayerConfig', 'id']} label="歌单ID">
 					<Input />
-				</Form.Item>
-				<Form.Item name={['musicPlayerConfig', 'server']} label="平台">
+				</FormField>
+				<FormField name={['musicPlayerConfig', 'server']} label="平台">
 					<Input placeholder="例如: netease/tencent/kugou" />
-				</Form.Item>
-				<Form.Item name={['musicPlayerConfig', 'type']} label="播放类型">
+				</FormField>
+				<FormField name={['musicPlayerConfig', 'type']} label="播放类型">
 					<Select options={[{ label: '歌单', value: 'playlist' }]} />
-				</Form.Item>
+				</FormField>
 			</>
 		)
 	},
@@ -958,43 +945,43 @@ const collapseItems = (
 
 		children: (
 			<>
-				<Form.Item name={['commentConfig', 'enable']} valuePropName="checked" label="启用评论">
+				<FormField name={['commentConfig', 'enable']} valueKey="checked" label="启用评论">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['commentConfig', 'system']} label="评论系统">
+				</FormField>
+				<FormField name={['commentConfig', 'system']} label="评论系统">
 					<Select
 						options={[
 							{ label: 'Twikoo', value: 'twikoo' },
 							{ label: 'Giscus', value: 'giscus' }
 						]}
 					/>
-				</Form.Item>
-				<Form.Item noStyle shouldUpdate={(prev, curr) => prev.commentConfig?.system !== curr.commentConfig?.system}>
-					{({ getFieldValue }) => {
-						const system = getFieldValue(['commentConfig', 'system'])
+				</FormField>
+				<FormField unstyled observe={(prev, curr) => prev.commentConfig?.system !== curr.commentConfig?.system}>
+					{({ getValue }) => {
+						const system = getValue(['commentConfig', 'system'])
 						if (system === 'twikoo') {
 							return (
-								<Form.Item name={['commentConfig', 'twikoo', 'envId']} label="Twikoo环境ID">
+								<FormField name={['commentConfig', 'twikoo', 'envId']} label="Twikoo环境ID">
 									<Input />
-								</Form.Item>
+								</FormField>
 							)
 						}
 						if (system === 'giscus') {
 							return (
 								<>
-									<Form.Item name={['commentConfig', 'giscus', 'repo']} label="Giscus仓库" rules={[{ required: true }]}>
+									<FormField name={['commentConfig', 'giscus', 'repo']} label="Giscus仓库" rules={[{ required: true }]}>
 										<Input placeholder="username/repo-name" />
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'repoId']} label="仓库ID" rules={[{ required: true }]}>
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'repoId']} label="仓库ID" rules={[{ required: true }]}>
 										<Input />
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'category']} label="分类" rules={[{ required: true }]}>
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'category']} label="分类" rules={[{ required: true }]}>
 										<Input />
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'categoryId']} label="分类ID" rules={[{ required: true }]}>
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'categoryId']} label="分类ID" rules={[{ required: true }]}>
 										<Input />
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'mapping']} label="映射">
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'mapping']} label="映射">
 										<Select
 											defaultValue="pathname"
 											options={[
@@ -1004,32 +991,32 @@ const collapseItems = (
 												{ label: 'og:title', value: 'og:title' }
 											]}
 										/>
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'strict']} label="严格模式">
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'strict']} label="严格模式">
 										<Select
 											options={[
 												{ label: '0', value: '0' },
 												{ label: '1', value: '1' }
 											]}
 										/>
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'reactionsEnabled']} label="启用表情">
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'reactionsEnabled']} label="启用表情">
 										<Select
 											options={[
 												{ label: '1', value: '1' },
 												{ label: '0', value: '0' }
 											]}
 										/>
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'inputPosition']} label="输入位置">
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'inputPosition']} label="输入位置">
 										<Select
 											options={[
 												{ label: 'top', value: 'top' },
 												{ label: 'bottom', value: 'bottom' }
 											]}
 										/>
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'theme']} label="主题">
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'theme']} label="主题">
 										<Select
 											options={[
 												{ label: '跟随系统', value: 'preferred_color_scheme' },
@@ -1037,29 +1024,29 @@ const collapseItems = (
 												{ label: '深色', value: 'dark' }
 											]}
 										/>
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'lang']} label="语言">
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'lang']} label="语言">
 										<Select
 											options={[
 												{ label: '中文', value: 'zh_CN' },
 												{ label: '英文', value: 'en' }
 											]}
 										/>
-									</Form.Item>
-									<Form.Item name={['commentConfig', 'giscus', 'loading']} label="加载方式">
+									</FormField>
+									<FormField name={['commentConfig', 'giscus', 'loading']} label="加载方式">
 										<Select
 											options={[
 												{ label: 'lazy', value: 'lazy' },
 												{ label: 'eager', value: 'eager' }
 											]}
 										/>
-									</Form.Item>
+									</FormField>
 								</>
 							)
 						}
 						return null
 					}}
-				</Form.Item>
+				</FormField>
 			</>
 		)
 	},
@@ -1070,87 +1057,87 @@ const collapseItems = (
 
 		children: (
 			<>
-				<Row gutter={[8, 0]}>
-					<Col span={24}>
-						<Form.Item name={['sakuraConfig', 'enable']} valuePropName="checked" label="启用樱花">
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-12">
+						<FormField name={['sakuraConfig', 'enable']} valueKey="checked" label="启用樱花">
 							<Switch />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'sakuraNum']} label="樱花数量">
-							<InputNumber min={1} max={50} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'limitTimes']} label="越界限制次数(-1为无限)">
-							<InputNumber min={-1} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-				</Row>
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'sakuraNum']} label="樱花数量">
+							<NumberInput min={1} max={50} className="w-full" />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'limitTimes']} label="越界限制次数(-1为无限)">
+							<NumberInput min={-1} className="w-full" />
+						</FormField>
+					</div>
+				</div>
 				<Divider orientation="horizontal">尺寸范围</Divider>
-				<Row gutter={[8, 0]}>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'size', 'min']} label="最小尺寸倍数">
-							<InputNumber min={0.1} max={2} step={0.1} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'size', 'max']} label="最大尺寸倍数">
-							<InputNumber min={0.1} max={2} step={0.1} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-				</Row>
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'size', 'min']} label="最小尺寸倍数">
+							<NumberInput min={0.1} max={2} step={0.1} className="w-full" />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'size', 'max']} label="最大尺寸倍数">
+							<NumberInput min={0.1} max={2} step={0.1} className="w-full" />
+						</FormField>
+					</div>
+				</div>
 				<Divider orientation="horizontal">透明度</Divider>
-				<Row gutter={[8, 0]}>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'opacity', 'min']} label="最小透明度">
-							<InputNumber min={0} max={1} step={0.1} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'opacity', 'max']} label="最大透明度">
-							<InputNumber min={0} max={1} step={0.1} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-				</Row>
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'opacity', 'min']} label="最小透明度">
+							<NumberInput min={0} max={1} step={0.1} className="w-full" />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'opacity', 'max']} label="最大透明度">
+							<NumberInput min={0} max={1} step={0.1} className="w-full" />
+						</FormField>
+					</div>
+				</div>
 				<Divider orientation="horizontal">速度</Divider>
-				<Row gutter={[8, 0]}>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'speed', 'horizontal', 'min']} label="水平速度最小值">
-							<InputNumber className={styles.fullWidth} step={0.1} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'speed', 'horizontal', 'max']} label="水平速度最大值">
-							<InputNumber className={styles.fullWidth} step={0.1} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'speed', 'vertical', 'min']} label="垂直速度最小值">
-							<InputNumber className={styles.fullWidth} step={0.1} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'speed', 'vertical', 'max']} label="垂直速度最大值">
-							<InputNumber className={styles.fullWidth} step={0.1} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'speed', 'rotation']} label="旋转速度">
-							<InputNumber className={styles.fullWidth} step={0.01} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['sakuraConfig', 'speed', 'fadeSpeed']} label="消失速度">
-							<InputNumber className={styles.fullWidth} step={0.01} />
-						</Form.Item>
-					</Col>
-					<Col span={24}>
-						<Form.Item name={['sakuraConfig', 'zIndex']} label="层级">
-							<InputNumber />
-						</Form.Item>
-					</Col>
-				</Row>
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'speed', 'horizontal', 'min']} label="水平速度最小值">
+							<NumberInput className="w-full" step={0.1} />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'speed', 'horizontal', 'max']} label="水平速度最大值">
+							<NumberInput className="w-full" step={0.1} />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'speed', 'vertical', 'min']} label="垂直速度最小值">
+							<NumberInput className="w-full" step={0.1} />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'speed', 'vertical', 'max']} label="垂直速度最大值">
+							<NumberInput className="w-full" step={0.1} />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'speed', 'rotation']} label="旋转速度">
+							<NumberInput className="w-full" step={0.01} />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['sakuraConfig', 'speed', 'fadeSpeed']} label="消失速度">
+							<NumberInput className="w-full" step={0.01} />
+						</FormField>
+					</div>
+					<div className="md:col-span-12">
+						<FormField name={['sakuraConfig', 'zIndex']} label="层级">
+							<NumberInput />
+						</FormField>
+					</div>
+				</div>
 			</>
 		)
 	},
@@ -1161,81 +1148,81 @@ const collapseItems = (
 
 		children: (
 			<>
-				<Row gutter={[8, 0]}>
-					<Col span={24}>
-						<Form.Item name={['pioConfig', 'enable']} valuePropName="checked" label="启用">
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-12">
+						<FormField name={['pioConfig', 'enable']} valueKey="checked" label="启用">
 							<Switch />
-						</Form.Item>
-					</Col>
-					<Col span={24}>
-						<Form.Item name={['pioConfig', 'hiddenOnMobile']} valuePropName="checked" label="移动端隐藏">
+						</FormField>
+					</div>
+					<div className="md:col-span-12">
+						<FormField name={['pioConfig', 'hiddenOnMobile']} valueKey="checked" label="移动端隐藏">
 							<Switch />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['pioConfig', 'position']} label="位置">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['pioConfig', 'position']} label="位置">
 							<Select
 								options={[
 									{ label: '左侧', value: 'left' },
 									{ label: '右侧', value: 'right' }
 								]}
 							/>
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['pioConfig', 'mode']} label="模式">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['pioConfig', 'mode']} label="模式">
 							<Select
 								options={[
 									{ label: '可拖拽', value: 'draggable' },
 									{ label: '固定', value: 'fixed' }
 								]}
 							/>
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['pioConfig', 'width']} label="宽度(px)">
-							<InputNumber min={100} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['pioConfig', 'height']} label="高度(px)">
-							<InputNumber min={100} className={styles.fullWidth} />
-						</Form.Item>
-					</Col>
-				</Row>
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['pioConfig', 'width']} label="宽度(px)">
+							<NumberInput min={100} className="w-full" />
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['pioConfig', 'height']} label="高度(px)">
+							<NumberInput min={100} className="w-full" />
+						</FormField>
+					</div>
+				</div>
 				<Divider orientation="horizontal">对话框配置</Divider>
-				<Row gutter={[8, 0]}>
-					<Col xs={24} md={12}>
-						<Form.Item name={['pioConfig', 'dialog', 'welcome']} label="欢迎语">
+				<div className="grid gap-x-4 md:grid-cols-12">
+					<div className="md:col-span-6">
+						<FormField name={['pioConfig', 'dialog', 'welcome']} label="欢迎语">
 							<Input />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['pioConfig', 'dialog', 'home']} label="首页提示">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['pioConfig', 'dialog', 'home']} label="首页提示">
 							<Input />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['pioConfig', 'dialog', 'close']} label="关闭提示">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['pioConfig', 'dialog', 'close']} label="关闭提示">
 							<Input />
-						</Form.Item>
-					</Col>
-					<Col xs={24} md={12}>
-						<Form.Item name={['pioConfig', 'dialog', 'link']} label="关于链接">
+						</FormField>
+					</div>
+					<div className="md:col-span-6">
+						<FormField name={['pioConfig', 'dialog', 'link']} label="关于链接">
 							<Input />
-						</Form.Item>
-					</Col>
-					<Col span={24}>
-						<Form.Item name={['pioConfig', 'dialog', 'touch']} label="触摸提示">
+						</FormField>
+					</div>
+					<div className="md:col-span-12">
+						<FormField name={['pioConfig', 'dialog', 'touch']} label="触摸提示">
 							<StringListEditor addText="添加提示" />
-						</Form.Item>
-					</Col>
-					<Col span={24}>
-						<Form.Item name={['pioConfig', 'dialog', 'skin']} label="换装提示">
+						</FormField>
+					</div>
+					<div className="md:col-span-12">
+						<FormField name={['pioConfig', 'dialog', 'skin']} label="换装提示">
 							<StringListEditor addText="添加提示" />
-						</Form.Item>
-					</Col>
-				</Row>
+						</FormField>
+					</div>
+				</div>
 			</>
 		)
 	},
@@ -1248,69 +1235,68 @@ const collapseItems = (
 			<>
 				{/* 版权声明 */}
 				<Divider orientation="horizontal">版权声明</Divider>
-				<Form.Item name={['licenseConfig', 'enable']} valuePropName="checked" label="启用版权声明">
+				<FormField name={['licenseConfig', 'enable']} valueKey="checked" label="启用版权声明">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['licenseConfig', 'name']} label="许可证名称">
+				</FormField>
+				<FormField name={['licenseConfig', 'name']} label="许可证名称">
 					<Input />
-				</Form.Item>
-				<Form.Item name={['licenseConfig', 'url']} label="许可证链接" rules={[{ message: '请输入有效的URL' }]}>
+				</FormField>
+				<FormField name={['licenseConfig', 'url']} label="许可证链接" rules={[{ message: '请输入有效的URL' }]}>
 					<Input placeholder="https://creativecommons.org/licenses/by-nc-sa/4.0/" />
-				</Form.Item>
+				</FormField>
 
 				{/* 公告配置 */}
 				<Divider orientation="horizontal">公告配置</Divider>
-				<Form.Item name={['announcementConfig', 'title']} label="公告标题">
+				<FormField name={['announcementConfig', 'title']} label="公告标题">
 					<Input placeholder="留空使用默认标题" />
-				</Form.Item>
-				<Form.Item name={['announcementConfig', 'content']} label="公告内容">
-					<TextArea rows={5} />
-				</Form.Item>
-				<Form.Item name={['announcementConfig', 'closable']} valuePropName="checked" label="公告可关闭">
+				</FormField>
+				<FormField name={['announcementConfig', 'content']} label="公告内容">
+					<Textarea rows={5} />
+				</FormField>
+				<FormField name={['announcementConfig', 'closable']} valueKey="checked" label="公告可关闭">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['announcementConfig', 'link', 'enable']} valuePropName="checked" label="公告链接">
+				</FormField>
+				<FormField name={['announcementConfig', 'link', 'enable']} valueKey="checked" label="公告链接">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['announcementConfig', 'link', 'text']} label="链接文本">
+				</FormField>
+				<FormField name={['announcementConfig', 'link', 'text']} label="链接文本">
 					<Input placeholder="了解更多" />
-				</Form.Item>
-				<Form.Item name={['announcementConfig', 'link', 'url']} label="链接地址">
+				</FormField>
+				<FormField name={['announcementConfig', 'link', 'url']} label="链接地址">
 					<Input placeholder="/about/" />
-				</Form.Item>
-				<Form.Item name={['announcementConfig', 'link', 'external']} valuePropName="checked" label="外部链接">
+				</FormField>
+				<FormField name={['announcementConfig', 'link', 'external']} valueKey="checked" label="外部链接">
 					<Switch />
-				</Form.Item>
+				</FormField>
 
 				{/* 其他功能 */}
 				<Divider orientation="horizontal">其他功能</Divider>
-				<Form.Item name={['shareConfig', 'enable']} valuePropName="checked" label="分享功能">
+				<FormField name={['shareConfig', 'enable']} valueKey="checked" label="分享功能">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['relatedPostsConfig', 'enable']} valuePropName="checked" label="相关文章">
+				</FormField>
+				<FormField name={['relatedPostsConfig', 'enable']} valueKey="checked" label="相关文章">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['relatedPostsConfig', 'maxCount']} label="相关文章最大数量">
-					<InputNumber min={1} max={20} />
-				</Form.Item>
-				<Form.Item name={['randomPostsConfig', 'enable']} valuePropName="checked" label="随机文章">
+				</FormField>
+				<FormField name={['relatedPostsConfig', 'maxCount']} label="相关文章最大数量">
+					<NumberInput min={1} max={20} />
+				</FormField>
+				<FormField name={['randomPostsConfig', 'enable']} valueKey="checked" label="随机文章">
 					<Switch />
-				</Form.Item>
-				<Form.Item name={['randomPostsConfig', 'maxCount']} label="随机文章最大数量">
-					<InputNumber min={1} max={20} />
-				</Form.Item>
+				</FormField>
+				<FormField name={['randomPostsConfig', 'maxCount']} label="随机文章最大数量">
+					<NumberInput min={1} max={20} />
+				</FormField>
 			</>
 		)
 	}
 ]
 
 export default function Config() {
-	const [form] = Form.useForm()
+	const form = useForm()
 	const [loading, setLoading] = useState(false)
 	const [showReload, setShowReload] = useState(false)
 	const db = useConfigContentDB()
 	const originalData = useRef<any>(null) // 存表单修改前数据
-	const [msgApi, msgContextHolder] = message.useMessage()
 
 	// 获取配置数据
 	const getConfig = useCallback(async () => {
@@ -1323,8 +1309,8 @@ export default function Config() {
 				await db.saveCache('original_data', JSON.stringify(res.data))
 				// 解包value给表单
 				const unwrappedData = unwrap(res.data, 'value')
-				form.setFieldsValue(unwrappedData)
-			} else msgApi.error('配置数据无效')
+				form.setValues(unwrappedData)
+			} else notify.error('配置数据无效')
 		} catch {
 		} finally {
 			setLoading(false)
@@ -1336,7 +1322,7 @@ export default function Config() {
 		await getConfig()
 		await db.clearCache('latest')
 		setShowReload(false)
-		msgApi.info('已重载为最新配置')
+		notify.info('已重载为最新配置')
 	}, [getConfig])
 
 	// 保存
@@ -1344,14 +1330,14 @@ export default function Config() {
 		if (loading) return
 		try {
 			setLoading(true)
-			const values = await form.validateFields()
+			const values = await form.validate()
 			const draft = JSON.parse(await db.getCache('latest'))
 			const merged = deepMerge(draft, values) // 表单最新值覆盖掉缓存值
 			const finalData = wrap(originalData.current, merged, 'value')
 			const res = await writeConfigData(finalData)
 			originalData.current = finalData
 			if (res.success) {
-				msgApi.success('保存成功')
+				notify.success('保存成功')
 				await db.clearCache('latest')
 				await db.saveCache('original_data', JSON.stringify(finalData))
 				setShowReload(false)
@@ -1379,7 +1365,7 @@ export default function Config() {
 				setLoading(true)
 				const res = await uploadFunc(file, fileList)
 				if (res.success) {
-					msgApi.success('上传成功')
+					notify.success('上传成功')
 					return res
 				}
 			} catch {
@@ -1394,7 +1380,7 @@ export default function Config() {
 		const res = await _uploadFiles(file, fileList, (file: File) => uploadHomeImage(file))
 		if (res.success) {
 			onSuccess?.(res.data?.[0]?.publicPath)
-			debouncedSaveDraft(form.getFieldsValue())
+			debouncedSaveDraft(form.getValues())
 		}
 		return false
 	}
@@ -1403,7 +1389,7 @@ export default function Config() {
 		const res = await _uploadFiles(file, fileList, (file: File) => uploadAvatarImage(file))
 		if (res.success) {
 			onSuccess?.(res.data?.[0]?.publicPath)
-			debouncedSaveDraft(form.getFieldsValue())
+			debouncedSaveDraft(form.getValues())
 		}
 		return false
 	}
@@ -1434,7 +1420,7 @@ export default function Config() {
 								const originalValue = JSON.parse(original)
 								if (originalValue && typeof originalValue === 'object') {
 									originalData.current = originalValue
-									form.setFieldsValue(draftValue)
+									form.setValues(draftValue)
 									setShowReload(true) // 只要有修改数据缓存就显示重载按钮
 								} else throw new Error('原始缓存无效')
 							} else throw new Error('原始缓存无效')
@@ -1450,43 +1436,40 @@ export default function Config() {
 	}, [])
 
 	return (
-		<>
-			{msgContextHolder}
-			<Card
-				title={
-					<span className={styles.cardTitle}>
-						<SettingOutlined /> 配置管理
-					</span>
-				}
-				className={styles.card}
-				extra={
+		<Page className="max-w-5xl">
+			<PageHeader
+				eyebrow="Site settings"
+				title="配置管理"
+				description="集中维护站点基础信息、外观、导航、内容功能与交互设置。修改会自动保存为本地草稿。"
+				actions={
 					showReload ? (
-						<Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={throttledSave}>
-							保存
-						</Button>
+						<>
+							<ConfirmDialog
+								trigger={<Button icon={<RefreshCw className="size-4" />} loading={loading}>重载配置</Button>}
+								title="放弃当前配置草稿？"
+								description="未保存的本地修改将被服务器上的最新配置替换。"
+								onConfirm={reloadContent}
+							/>
+							<Button variant="default" icon={<Save className="size-4" />} loading={loading} onClick={throttledSave}>保存配置</Button>
+						</>
 					) : null
 				}
-			>
-				<Spin spinning={loading}>
-					<div className={styles.cardHeader}>
-						<Typography.Text type="secondary">编辑配置项</Typography.Text>
-						{showReload && (
-							<Popconfirm title="当前有未保存的草稿，确定放弃并重载？" onConfirm={reloadContent}>
-								<Button size="small" icon={<ReloadOutlined />} loading={loading}>
-									内容重载
-								</Button>
-							</Popconfirm>
-						)}
-					</div>
+			/>
 
-					<Form form={form} layout="vertical" onValuesChange={() => debouncedSaveDraft(form.getFieldsValue(true))} initialValues={defaultValues}>
-						<Collapse
-							className={styles.collapse}
-							items={collapseItems(uploadHomeImg, uploadAvatar, uploadPCWallpaperImages, uploadMobileWallpaperImages)}
-						/>
-					</Form>
-				</Spin>
-			</Card>
-		</>
+			<PageSection
+				title="配置项"
+				description={showReload ? '本地草稿尚未同步到服务器' : '当前配置已与服务器同步'}
+				bodyClassName="relative p-4 sm:p-5"
+			>
+				<Form form={form} onValuesChange={() => debouncedSaveDraft(form.getValues())} initialValues={defaultValues}>
+					<Accordion items={settingsSections(uploadHomeImg, uploadAvatar, uploadPCWallpaperImages, uploadMobileWallpaperImages)} />
+				</Form>
+				{loading && (
+					<div className="absolute inset-0 z-20 grid min-h-64 place-items-center rounded-b-xl bg-background/65 backdrop-blur-[1px]">
+						<LoaderCircle className="size-7 animate-spin text-primary" />
+					</div>
+				)}
+			</PageSection>
+		</Page>
 	)
 }

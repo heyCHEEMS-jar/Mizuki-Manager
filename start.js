@@ -1,7 +1,11 @@
 const path = require('path')
 const fs = require('fs')
 
-const envPath = path.resolve(__dirname, '.env')
+const ROOT_DIR = __dirname
+const FRONTEND_DIR = path.join(ROOT_DIR, 'frontend')
+const SERVER_ENTRY = path.join(ROOT_DIR, 'server', 'app.js')
+const LOGS_DIR = path.join(ROOT_DIR, 'logs')
+const envPath = path.join(ROOT_DIR, '.env')
 if (!fs.existsSync(envPath)) {
 	console.error('\n.env 文件不存在！请根据根目录下的 .env.example 创建 .env 文件并配置相应的环境变量。\n')
 	process.exit(1)
@@ -27,13 +31,13 @@ const [installCmd, installArgs] = getPackageCmd('install')
 const frontendInstallRes = spawnSync(installCmd, installArgs, {
 	stdio: 'inherit',
 	shell: true,
-	cwd: './frontend'
+	cwd: FRONTEND_DIR
 })
 // 安装更新根目录依赖
 const rootInstallRes = spawnSync(installCmd, installArgs, {
 	stdio: 'inherit',
 	shell: true,
-	cwd: '.'
+	cwd: ROOT_DIR
 })
 if (frontendInstallRes.status !== 0) {
 	console.error('\n前端依赖安装更新失败！\n')
@@ -50,16 +54,17 @@ if (!isProd) {
 	const frontend = spawn(devCmd, devArgs, {
 		stdio: 'inherit',
 		shell: true,
-		cwd: './frontend',
+		cwd: FRONTEND_DIR,
 		env: {
 			...process.env,
 			NODE_ENV: 'development'
 		}
 	})
 	// 启动后端
-	const server = spawn('nodemon', ['--watch', './server', './server/app.js'], {
+	const server = spawn('nodemon', ['--watch', 'server', 'server/app.js'], {
 		stdio: 'inherit',
 		shell: true,
+		cwd: ROOT_DIR,
 		env: {
 			...process.env,
 			NODE_ENV: 'development'
@@ -84,7 +89,7 @@ if (!isProd) {
 	const buildRes = spawnSync(prodCmd, prodArgs, {
 		stdio: 'inherit',
 		shell: true,
-		cwd: './frontend',
+		cwd: FRONTEND_DIR,
 		env: {
 			...process.env,
 			NODE_ENV: 'production'
@@ -100,17 +105,18 @@ if (!isProd) {
 			console.error('pm2连接失败:', err)
 			process.exit(1)
 		}
-		if (!fs.existsSync('./logs')) fs.mkdirSync('./logs')
+		fs.mkdirSync(LOGS_DIR, { recursive: true })
 		pm2.start(
 			{
-				script: './server/app.js',
+				script: SERVER_ENTRY,
+				cwd: ROOT_DIR,
 				name: 'mizuki-manager',
 				env: {
 					...process.env,
 					NODE_ENV: 'production'
 				},
-				output: './logs/out.log',
-				error: './logs/error.log',
+				output: path.join(LOGS_DIR, 'out.log'),
+				error: path.join(LOGS_DIR, 'error.log'),
 				merge_logs: true
 			},
 			(err, proc) => {

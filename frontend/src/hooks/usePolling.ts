@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 export const usePolling = <T extends (...args: any[]) => void>(func: T, delay: number, options: { immediate?: boolean } = {}) => {
-	const timer = useRef<NodeJS.Timeout | null>(null)
+	const timer = useRef<ReturnType<typeof setInterval> | null>(null)
 	const funcRef = useRef(func)
 	const { immediate = false } = options
 

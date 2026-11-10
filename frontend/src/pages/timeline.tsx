@@ -1,36 +1,15 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import {
-	Card,
-	Row,
-	Col,
-	Tag,
-	Button,
-	Modal,
-	Form,
-	Input,
-	message,
-	Space,
-	Typography,
-	Spin,
-	Layout,
-	Empty,
-	Pagination,
-	Checkbox,
-	CheckboxProps,
-	Popconfirm,
-	Select,
-	DatePicker,
-	Switch,
-	Timeline as AntTimeline
-} from 'antd'
-import { CheckboxChangeEvent } from 'antd/es/checkbox'
-import { DeleteOutlined, ClockCircleOutlined, PlusOutlined, EditOutlined, LinkOutlined, EnvironmentOutlined, TeamOutlined } from '@ant-design/icons'
-import { getTimelineConfig, writeTimelineConfig } from '../services/timeline'
-import { throttle } from '../utils/util'
-import styles from '../styles/pages/timeline.module.scss'
-import { Content } from 'antd/es/layout/layout'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { Icon } from '@iconify/react'
 import dayjs from 'dayjs'
+import { BriefcaseBusiness, ExternalLink, GraduationCap, Landmark, MapPin, Pencil, Trash2, Trophy, Users } from 'lucide-react'
+import { CollectionControls } from '../components/CollectionControls'
+import { Page, PageHeader, PageLoading } from '../components/Page'
+import { Button, Checkbox, ColorPicker, DatePicker, Form, FormField, FormList, Input, Dialog, Pagination, Select, Switch, Textarea, useForm, useFormWatch } from '../components/ui'
+import { usePagedCollection } from '../hooks/usePagedCollection'
+import { notify } from '../lib/notify'
+import { getTimelineConfig, writeTimelineConfig } from '../services/timeline'
+import { cn } from '../lib/utils'
+import { throttle } from '../utils/util'
 
 interface TimelineItem {
 	id: string
@@ -44,78 +23,48 @@ interface TimelineItem {
 	position?: string
 	skills?: string[]
 	achievements?: string[]
-	links?: {
-		name: string
-		url: string
-		type: 'website' | 'certificate' | 'project' | 'other'
-	}[]
+	links?: Array<{ name: string; url: string; type: 'website' | 'certificate' | 'project' | 'other' }>
 	icon?: string
 	color?: string
 	featured?: boolean
 }
 
-const { TextArea } = Input
-
 const typeMap = {
-	education: { label: '教育经历', color: 'geekblue', icon: <ClockCircleOutlined /> },
-	work: { label: '工作经历', color: 'green', icon: <ClockCircleOutlined /> },
-	project: { label: '项目经历', color: 'purple', icon: <ClockCircleOutlined /> },
-	achievement: { label: '成就荣誉', color: 'volcano', icon: <ClockCircleOutlined /> }
+	education: { label: '教育经历', color: '#3b82f6', icon: GraduationCap },
+	work: { label: '工作经历', color: '#22c55e', icon: BriefcaseBusiness },
+	project: { label: '项目经历', color: '#8b5cf6', icon: Landmark },
+	achievement: { label: '成就荣誉', color: '#f97316', icon: Trophy }
 }
 
+const typeOptions = Object.entries(typeMap).map(([value, item]) => ({ label: item.label, value }))
+const linkTypeOptions = [
+	{ label: '网站', value: 'website' },
+	{ label: '证书', value: 'certificate' },
+	{ label: '项目', value: 'project' },
+	{ label: '其他', value: 'other' }
+]
+
+const formatDate = (date?: string) => date ? dayjs(date).format('YYYY年MM月') : ''
+
 export default function Timeline() {
-	const [form] = Form.useForm()
+	const form = useForm()
 	const [loading, setLoading] = useState(false)
-	const [timelineList, setTimelineList] = useState<TimelineItem[]>([])
-	const [isModalOpen, setIsModalOpen] = useState(false)
+	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [editingIndex, setEditingIndex] = useState<number>()
-	const [pageList, setPageList] = useState<TimelineItem[]>([])
-	const [pageNum, setPageNum] = useState(1)
-	const [pageSize, setPageSize] = useState(12)
-	const [checkedIdxes, setCheckedIdxes] = useState<Set<number>>(new Set())
+	const collection = usePagedCollection<TimelineItem>()
+	const iconValue = useFormWatch('icon', form)
 
-	const iconValue = Form.useWatch('icon', form)
-
-	const onCheckAllChange: CheckboxProps['onChange'] = (e) => {
-		setCheckedIdxes(e.target.checked ? new Set(pageList.map((_, index) => index)) : new Set())
-	}
-
-	const _handleCheck = (needCheck: boolean, index: number) => {
-		setCheckedIdxes((prev) => {
-			const next = new Set(prev)
-			if (needCheck) next.add(index)
-			else next.delete(index)
-			return next
-		})
-	}
-
-	const onCheckChange = (e: CheckboxChangeEvent, index: number) => {
-		e.stopPropagation()
-		_handleCheck(e?.target?.checked as boolean, index)
-	}
-
-	const onPageChange = async (page: number, size: number) => {
-		setCheckedIdxes(new Set())
-		setPageNum(page)
-		setPageSize(size)
-		setPageList(timelineList.slice((page - 1) * size, page * size) || [])
-	}
-
-	const getConfig = useCallback(async (num: number, size: number) => {
+	const getConfig = useCallback(async (page: number, pageSize: number) => {
 		try {
 			setLoading(true)
 			const res = await getTimelineConfig()
 			if (res.success) {
-				const data: TimelineItem[] = res.data?.timelineData || []
-				// 按最新时间倒序
-				const sortedData = [...data].sort((a, b) => {
-					// 进行中的排前面
+				const items: TimelineItem[] = [...(res.data?.timelineData || [])].sort((a, b) => {
 					if (!a.endDate && b.endDate) return -1
 					if (a.endDate && !b.endDate) return 1
 					return new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
 				})
-				setTimelineList(sortedData)
-				setPageList(sortedData.slice((num - 1) * size, num * size) || [])
+				collection.setItems(items, page, pageSize)
 			}
 		} catch {
 		} finally {
@@ -123,61 +72,50 @@ export default function Timeline() {
 		}
 	}, [])
 
-	const openEditModal = (e: React.MouseEvent | undefined, index: number) => {
-		e?.stopPropagation()
+	const openEditDialog = (event: MouseEvent | undefined, index: number) => {
+		event?.stopPropagation()
 		setEditingIndex(index)
-		form.resetFields()
-		if (index !== -1) {
-			const item = pageList[index]
-			form.setFieldsValue({
+		form.reset()
+		if (index === -1) {
+			form.setValues({ id: `timeline-${Date.now()}`, type: 'education', skills: [], achievements: [], links: [], featured: false, color: '#1890ff' })
+		} else {
+			const item = collection.pageItems[index]
+			form.setValues({
 				...item,
-				startDate: item.startDate ? dayjs(item.startDate) : null,
-				endDate: item.endDate ? dayjs(item.endDate) : null,
+				startDate: item.startDate ? dayjs(item.startDate) : undefined,
+				endDate: item.endDate ? dayjs(item.endDate) : undefined,
 				links: item.links || []
 			})
-		} else {
-			form.setFieldsValue({
-				id: `timeline-${Date.now()}`,
-				type: 'education',
-				skills: [],
-				achievements: [],
-				links: [],
-				featured: false
-			})
 		}
-		setIsModalOpen(true)
+		setIsDialogOpen(true)
 	}
 
-	const updateList = useCallback(
-		async (newList: TimelineItem[], successMsg: string, num: number, size: number) => {
-			try {
-				setLoading(true)
-				const res = await writeTimelineConfig({ timelineData: newList })
-				if (res.success) {
-					message.success(successMsg)
-					setIsModalOpen(false)
-					setCheckedIdxes(new Set())
-					await getConfig(num, size)
-				}
-			} catch {
-			} finally {
-				setLoading(false)
+	const updateList = useCallback(async (items: TimelineItem[], successMessage: string, page: number, pageSize: number) => {
+		try {
+			setLoading(true)
+			const res = await writeTimelineConfig({ timelineData: items })
+			if (res.success) {
+				notify.success(successMessage)
+				setIsDialogOpen(false)
+				await getConfig(page, pageSize)
 			}
-		},
-		[getConfig]
-	)
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [getConfig])
 
-	const _handleSave = useCallback(async () => {
+	const handleSave = useCallback(async () => {
 		if (editingIndex === undefined) return
 		try {
-			const values = await form.validateFields()
-			const formattedValues: TimelineItem = {
+			const values = await form.validate()
+			const item: TimelineItem = {
 				id: values.id,
 				title: values.title,
 				description: values.description,
 				type: values.type,
-				startDate: values.startDate ? values.startDate.format('YYYY-MM-DD') : '',
-				endDate: values.endDate ? values.endDate.format('YYYY-MM-DD') : '',
+				startDate: values.startDate?.format('YYYY-MM-DD') || '',
+				endDate: values.endDate?.format('YYYY-MM-DD') || '',
 				location: values.location,
 				organization: values.organization,
 				position: values.position,
@@ -188,32 +126,25 @@ export default function Timeline() {
 				color: values.color,
 				featured: values.featured || false
 			}
-
-			const newList = [...timelineList]
-			if (editingIndex !== -1) {
-				const realIndex = timelineList.findIndex((item) => item.id === pageList[editingIndex].id)
-				if (realIndex !== -1) newList[realIndex] = formattedValues
+			const items = [...collection.items]
+			if (editingIndex === -1) {
+				items.unshift(item)
 			} else {
-				newList.unshift(formattedValues)
+				const realIndex = items.findIndex((entry) => entry.id === collection.pageItems[editingIndex].id)
+				if (realIndex !== -1) items[realIndex] = item
 			}
-			await updateList(newList, editingIndex === -1 ? '添加成功' : '修改成功', pageNum, pageSize)
+			await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
 		} catch (err) {
 			console.error(err)
 		}
-	}, [updateList, timelineList, editingIndex, form, pageList, pageNum, pageSize])
-	const throttledSave = useMemo(() => throttle(_handleSave, 2000, { immediate: true }), [_handleSave])
+	}, [collection.items, collection.page, collection.pageItems, collection.pageSize, editingIndex, form, updateList])
+	const throttledSave = useMemo(() => throttle(handleSave, 2000, { immediate: true }), [handleSave])
 
 	const removeTimelineItems = async () => {
-		const removeIds = new Set(pageList.filter((_, index) => checkedIdxes.has(index)).map((i) => i.id))
-		const newList = timelineList.filter((item) => !removeIds.has(item.id))
-		const newTotalPages = Math.max(1, Math.ceil(newList.length / pageSize))
-		const newPageNum = Math.min(pageNum, newTotalPages)
-		await updateList(newList, '删除成功', newPageNum, pageSize)
-	}
-
-	const formatDate = (date: string) => {
-		if (!date) return ''
-		return dayjs(date).format('YYYY年MM月')
+		const removeIds = new Set(collection.selectedItems.map((item) => item.id))
+		const items = collection.items.filter((item) => !removeIds.has(item.id))
+		const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
+		await updateList(items, '删除成功', page, collection.pageSize)
 	}
 
 	useEffect(() => {
@@ -221,324 +152,140 @@ export default function Timeline() {
 	}, [])
 
 	return (
-		<Layout className={styles['layout-container']}>
-			<Content className={styles.content}>
-				<Spin spinning={loading}>
-					<div className={styles.toolbar}>
-						<div className={styles.toolbarTitle}>
-							<Typography.Title level={4} className={styles.pageTitle}>
-								<ClockCircleOutlined /> 时间线管理
-							</Typography.Title>
-							<Typography.Text type="secondary">管理成长历程和重要里程碑</Typography.Text>
-						</div>
-					</div>
+		<Page>
+			<PageHeader eyebrow="Milestones" title="时间线管理" description="维护成长经历、重要里程碑和相关成果。" />
+			<CollectionControls
+				itemCount={collection.pageItems.length}
+				selectedCount={collection.selected.size}
+				allSelected={collection.allSelected}
+				partiallySelected={collection.partiallySelected}
+				loading={loading}
+				addLabel="添加条目"
+				deleteTitle="删除选中的时间线条目？"
+				deleteDescription="所选经历将从时间线中移除。"
+				onSelectAll={collection.selectAll}
+				onDelete={removeTimelineItems}
+				onAdd={() => openEditDialog(undefined, -1)}
+			/>
 
-					<Space className={styles.actionBar}>
-						{pageList.length > 0 && (
-							<Checkbox
-								onChange={onCheckAllChange}
-								indeterminate={checkedIdxes.size > 0 && checkedIdxes.size < pageList.length}
-								checked={checkedIdxes.size === pageList.length}
-							>
-								全选
-							</Checkbox>
-						)}
-						{checkedIdxes.size > 0 && (
-							<Popconfirm title="确定删除选中的时间线条目吗?" onConfirm={removeTimelineItems} okText="确定" cancelText="取消">
-								<Button loading={loading} danger icon={<DeleteOutlined />}>
-									删除
-								</Button>
-							</Popconfirm>
-						)}
-						<Button loading={loading} icon={<PlusOutlined />} onClick={() => openEditModal(undefined, -1)}>
-							添加条目
-						</Button>
-					</Space>
-
-					{pageList.length > 0 ? (
-						<AntTimeline
-							items={pageList.map((item, index) => ({
-								key: item.id,
-								color: item.color || typeMap[item.type]?.color,
-								icon: item.icon ? <Icon icon={item.icon} width={20} height={20} /> : null,
-								content: (
-									<Card
-										hoverable
-										size="small"
-										onClick={() => _handleCheck(!checkedIdxes.has(index), index)}
-										className={styles.timelineCard}
-										style={{ borderLeftColor: item.color || typeMap[item.type]?.color || '#1890ff' }}
-										actions={[<EditOutlined key="edit" onClick={(e) => openEditModal(e, index)} />]}
-									>
-										<Checkbox className={styles.cardCheckbox} checked={checkedIdxes.has(index)} onChange={(e) => onCheckChange(e, index)} />
-
-										<div className={styles.tagWrapper}>
-											<Space wrap>
-												{item.featured && (
-													<Tag className={styles.featuredTag} color="gold">
-														精选
-													</Tag>
-												)}
-												{!item.endDate && (
-													<Tag className={styles.currentTag} color="green">
-														当前状态
-													</Tag>
-												)}
-												<Tag className={styles.typeTag} color={typeMap[item.type]?.color}>
-													{typeMap[item.type]?.label}
-												</Tag>
-											</Space>
-										</div>
-
-										<Typography.Title level={5} className={styles.timelineTitle}>
-											{item.title}
-										</Typography.Title>
-
-										<div className={styles.metaInfo}>
-											{item.organization && (
-												<Space size={4}>
-													<TeamOutlined />
-													<Typography.Text type="secondary" className={styles.metaText}>
-														{item.organization}
-													</Typography.Text>
-												</Space>
-											)}
-											{item.location && (
-												<Space size={4}>
-													<EnvironmentOutlined />
-													<Typography.Text type="secondary" className={styles.metaText}>
-														{item.location}
-														{item.position ? ` · ${item.position}` : ''}
-													</Typography.Text>
-												</Space>
-											)}
-										</div>
-
-										<Typography.Text type="secondary" className={styles.dateText}>
-											{formatDate(item.startDate)} - {item.endDate ? formatDate(item.endDate) : '至今'}
-										</Typography.Text>
-
-										<Typography.Paragraph ellipsis={{ rows: 2 }} className={styles.descriptionText}>
-											{item.description}
-										</Typography.Paragraph>
-
-										{item.achievements && item.achievements.length > 0 && (
-											<div className={styles.sectionWrapper}>
-												<div className={styles.sectionLabel}>成就荣誉</div>
-												<Space wrap size={[4, 0]}>
-													{item.achievements?.map((achieve) => (
-														<Tag key={achieve} color="default" className={styles.achievementTag}>
-															<span className={styles.bulletDot}>●</span> {achieve}
-														</Tag>
-													))}
-												</Space>
-											</div>
-										)}
-
-										{item.skills && item.skills.length > 0 && (
-											<Space wrap size={[4, 0]} className={styles.skillWrapper}>
-												{item.skills?.map((skill) => (
-													<Tag key={skill} color="blue" className={styles.skillTag}>
-														{skill}
-													</Tag>
-												))}
-											</Space>
-										)}
-
-										{item.links && item.links.length > 0 && (
-											<Space wrap size={[4, 0]}>
-												{item.links?.map((link, idx) => (
-													<a key={idx} href={link.url} target="_blank" onClick={(e) => e.stopPropagation()}>
-														<Tag color="geekblue" className={styles.linkTag}>
-															<LinkOutlined /> {link.name}
-														</Tag>
-													</a>
-												))}
-											</Space>
-										)}
-									</Card>
-								)
-							}))}
-						/>
-					) : (
-						<Empty className={styles.empty} description="快来添加你的第一段经历~" />
-					)}
-
-					{timelineList.length > 0 && (
-						<Row justify="center" className={styles.paginationWrapper}>
-							<Pagination
-								size="small"
-								showQuickJumper
-								showSizeChanger
-								current={pageNum}
-								pageSize={pageSize}
-								total={timelineList.length}
-								onChange={onPageChange}
-								pageSizeOptions={[12, 24]}
-								className={styles.pagination}
-							/>
-						</Row>
-					)}
-				</Spin>
-
-				<Modal
-					title={editingIndex === -1 ? '添加时间线条目' : '编辑时间线条目'}
-					open={isModalOpen}
-					onOk={throttledSave}
-					onCancel={() => setIsModalOpen(false)}
-					width={700}
-					okText="保存"
-					cancelText="取消"
-					centered
-					mask={{ closable: false }}
-					destroyOnHidden
-				>
-					<Form form={form} layout="vertical" initialValues={{ type: 'education', featured: false, color: '#1890ff' }}>
-						<Form.Item name="id" hidden>
-							<Input />
-						</Form.Item>
-						<Row gutter={[8, 0]}>
-							<Col xs={24} md={14}>
-								<Form.Item name="title" label="标题" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Input placeholder="输入标题" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={6}>
-								<Form.Item name="type" label="类型" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Select
-										options={[
-											{ label: '教育经历', value: 'education' },
-											{ label: '工作经历', value: 'work' },
-											{ label: '项目经历', value: 'project' },
-											{ label: '成就荣誉', value: 'achievement' }
-										]}
-									/>
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={4}>
-								<Form.Item name="featured" label="是否精选" valuePropName="checked" className={styles.modalFormItem}>
-									<Switch />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={14}>
-								<Form.Item name="organization" label="组织/机构" className={styles.modalFormItem}>
-									<Input placeholder="例如: 某大学/某公司" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={6}>
-								<Form.Item name="location" label="地点" className={styles.modalFormItem}>
-									<Input placeholder="例如: 北京/上海" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={4}>
-								<Form.Item name="color" label="主题颜色" className={styles.modalFormItem}>
-									<Input type="color" className={`${styles.fullWidth} ${styles.pointer}`} />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="startDate" label="开始日期" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<DatePicker className={styles.fullWidth} placeholder="选择开始日期" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="endDate" label="结束日期" className={styles.modalFormItem}>
-									<DatePicker className={styles.fullWidth} placeholder="留空表示至今" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="position" label="职位/角色" className={styles.modalFormItem}>
-									<Input placeholder="例如: 前端开发实习生" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item
-									name="icon"
-									label={
-										<>
-											<span>图标</span>
-											<a href={process.env.ICONIFY_URL} target="_blank">
-												&nbsp;访问 iconify
-											</a>
-										</>
-									}
-									className={styles.modalFormItem}
+			{loading && !collection.pageItems.length ? (
+				<PageLoading label="正在加载时间线..." />
+			) : collection.pageItems.length ? (
+				<div className={cn('relative space-y-4 before:absolute before:bottom-4 before:left-4 before:top-4 before:w-px before:bg-border sm:before:left-5', loading && 'pointer-events-none opacity-60')}>
+					{collection.pageItems.map((item, index) => {
+						const selected = collection.selected.has(index)
+						const meta = typeMap[item.type]
+						const TimelineIcon = meta.icon
+						const color = item.color || meta.color
+						return (
+							<div key={item.id} className="relative pl-10 sm:pl-12">
+								<span className="absolute left-0 top-5 z-10 grid size-8 place-items-center rounded-full border-4 border-background text-white sm:left-1" style={{ backgroundColor: color }}>
+									{item.icon ? <Icon icon={item.icon} width={15} height={15} /> : <TimelineIcon className="size-3.5" />}
+								</span>
+								<article
+									className={cn('relative cursor-pointer rounded-xl border border-l-4 bg-card p-5 shadow-sm transition-all hover:shadow-md', selected && 'ring-2 ring-primary/20')}
+									style={{ borderLeftColor: color }}
+									role="button"
+									tabIndex={0}
+									onClick={() => collection.toggleItem(index)}
+									onKeyDown={(event) => {
+										if (event.key === 'Enter' || event.key === ' ') collection.toggleItem(index)
+									}}
 								>
-									<Form.Item name="icon" noStyle>
-										<Input
-											placeholder="例如: material-symbols:school"
-											suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : <span />}
-										/>
-									</Form.Item>
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="description" label="描述" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<TextArea rows={3} placeholder="详细描述这段经历..." />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="achievements" label="成就荣誉" className={styles.modalFormItem}>
-									<Select mode="tags" placeholder="添加这段经历的收获和成就" />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="skills" label="技术栈" className={styles.modalFormItem}>
-									<Select mode="tags" placeholder="添加相关技术栈, 如: React" />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<div className={styles.linksLabel}>相关链接</div>
-								<Form.List name="links">
-									{(fields, { add, remove }) => (
-										<>
-											{fields.map((field) => (
-												<div key={field.key} className={styles.linkRow}>
-													<Form.Item
-														key={`name-${field.key}`}
-														name={[field.name, 'name']}
-														rules={[{ required: true, message: '请输入名称' }]}
-														className={styles.linkNameInput}
-													>
-														<Input placeholder="名称" />
-													</Form.Item>
-													<Form.Item
-														key={`url-${field.key}`}
-														name={[field.name, 'url']}
-														rules={[{ required: true, message: '请输入链接地址' }]}
-														className={styles.linkUrlInput}
-													>
-														<Input placeholder="链接地址" />
-													</Form.Item>
-													<Form.Item
-														key={`type-${field.key}`}
-														name={[field.name, 'type']}
-														rules={[{ required: true, message: '请选择类型' }]}
-														className={styles.linkTypeSelect}
-														initialValue="other"
-													>
-														<Select
-															options={[
-																{ label: '网站', value: 'website' },
-																{ label: '证书', value: 'certificate' },
-																{ label: '项目', value: 'project' },
-																{ label: '其他', value: 'other' }
-															]}
-														/>
-													</Form.Item>
-													<Button loading={loading} icon={<DeleteOutlined />} onClick={() => remove(field.name)} danger size="small" />
-												</div>
-											))}
-											<Button loading={loading} type="dashed" onClick={() => add({ type: 'other' })} block icon={<PlusOutlined />}>
-												添加链接
-											</Button>
-										</>
-									)}
-								</Form.List>
-							</Col>
-						</Row>
-					</Form>
-				</Modal>
-			</Content>
-		</Layout>
+									<Checkbox className="absolute right-4 top-4" checked={selected} onCheckedChange={(checked) => collection.setItemSelected(index, checked)} />
+									<div className="flex flex-wrap items-center gap-2 pr-8">
+										<span className="rounded-md px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: color }}>{meta.label}</span>
+										{item.featured && <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs text-amber-700">精选</span>}
+										{!item.endDate && <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">当前状态</span>}
+									</div>
+									<h2 className="mt-3 text-lg font-semibold">{item.title}</h2>
+									<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+										{item.organization && <span className="inline-flex items-center gap-1"><Users className="size-3.5" />{item.organization}</span>}
+										{item.location && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" />{item.location}{item.position ? ` · ${item.position}` : ''}</span>}
+									</div>
+									<time className="mt-2 block text-xs font-medium text-muted-foreground">{formatDate(item.startDate)} – {item.endDate ? formatDate(item.endDate) : '至今'}</time>
+									<p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground">{item.description}</p>
+									{item.achievements?.length ? <div className="mt-4 flex flex-wrap gap-1.5">{item.achievements.map((achievement) => <span key={achievement} className="rounded-md bg-muted px-2 py-1 text-xs">• {achievement}</span>)}</div> : null}
+									{item.skills?.length ? <div className="mt-3 flex flex-wrap gap-1.5">{item.skills.map((skill) => <span key={skill} className="rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-700">{skill}</span>)}</div> : null}
+									{item.links?.length ? (
+										<div className="mt-3 flex flex-wrap gap-2">
+											{item.links.map((link, linkIndex) => <a key={`${link.url}-${linkIndex}`} href={link.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md text-xs text-primary hover:underline" onClick={(event) => event.stopPropagation()}><ExternalLink className="size-3" />{link.name}</a>)}
+										</div>
+									) : null}
+									<Button variant="ghost" size="small" className="absolute bottom-3 right-3 size-8 px-0" aria-label={`编辑 ${item.title}`} onClick={(event) => openEditDialog(event, index)}><Pencil className="size-4" /></Button>
+								</article>
+							</div>
+						)
+					})}
+				</div>
+			) : (
+				<div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
+					<Landmark className="size-10 opacity-40" />
+					<p>快来添加你的第一段经历</p>
+				</div>
+			)}
+
+			{collection.items.length > 0 && (
+				<Pagination
+					current={collection.page}
+					pageSize={collection.pageSize}
+					total={collection.items.length}
+					pageSizeOptions={[12, 24]}
+					showQuickJumper
+					showSizeChanger
+					onChange={collection.changePage}
+				/>
+			)}
+
+			<Dialog
+				title={editingIndex === -1 ? '添加时间线条目' : '编辑时间线条目'}
+				open={isDialogOpen}
+				onSubmit={throttledSave}
+				onCancel={() => setIsDialogOpen(false)}
+				width={760}
+				confirmLabel="保存"
+				closeOnOutside={false}
+			>
+				<Form form={form} initialValues={{ type: 'education', featured: false, color: '#1890ff' }}>
+					<div className="grid gap-x-4 md:grid-cols-12">
+						<FormField name="title" label="标题" rules={[{ required: true }]} className="md:col-span-7"><Input placeholder="输入标题" /></FormField>
+						<FormField name="type" label="类型" rules={[{ required: true }]} className="md:col-span-3"><Select options={typeOptions} /></FormField>
+						<FormField name="featured" label="是否精选" valueKey="checked" className="md:col-span-2"><Switch /></FormField>
+						<FormField name="organization" label="组织 / 机构" className="md:col-span-7"><Input placeholder="例如：某大学 / 某公司" /></FormField>
+						<FormField name="location" label="地点" className="md:col-span-3"><Input placeholder="例如：北京" /></FormField>
+						<FormField name="color" label="主题颜色" className="md:col-span-2"><ColorPicker className="h-9 w-full" /></FormField>
+						<FormField name="startDate" label="开始日期" rules={[{ required: true }]} className="md:col-span-6"><DatePicker /></FormField>
+						<FormField name="endDate" label="结束日期" className="md:col-span-6"><DatePicker placeholder="留空表示至今" /></FormField>
+						<FormField name="position" label="职位 / 角色" className="md:col-span-6"><Input placeholder="例如：前端开发实习生" /></FormField>
+						<FormField
+							name="icon"
+							label={<span className="inline-flex items-center gap-2">图标<a href={process.env.ICONIFY_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">访问 Iconify<ExternalLink className="size-3" /></a></span>}
+							className="md:col-span-6"
+						>
+							<Input placeholder="例如：material-symbols:school" suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : undefined} />
+						</FormField>
+					</div>
+					<FormField name="description" label="描述" rules={[{ required: true }]}><Textarea rows={3} placeholder="详细描述这段经历..." /></FormField>
+					<FormField name="achievements" label="成就荣誉"><Select mode="tags" placeholder="输入经历收获后按回车" /></FormField>
+					<FormField name="skills" label="技术栈"><Select mode="tags" placeholder="输入技术栈后按回车" /></FormField>
+					<div className="mb-2 text-sm font-medium">相关链接</div>
+					<FormList name="links">
+						{(fields, { add, remove }) => (
+							<div className="space-y-2">
+								{fields.map((field) => (
+									<div key={field.key} className="grid items-start gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[1fr_2fr_8rem_auto]">
+										<FormField name={[field.name, 'name']} rules={[{ required: true, message: '请输入名称' }]} className="mb-0"><Input placeholder="名称" /></FormField>
+										<FormField name={[field.name, 'url']} rules={[{ required: true, message: '请输入链接地址' }]} className="mb-0"><Input placeholder="链接地址" /></FormField>
+										<FormField name={[field.name, 'type']} rules={[{ required: true, message: '请选择类型' }]} className="mb-0"><Select options={linkTypeOptions} /></FormField>
+										<Button variant="ghost" className="size-9 px-0 text-destructive hover:bg-destructive/10" aria-label="删除链接" onClick={() => remove(field.name)}><Trash2 className="size-4" /></Button>
+									</div>
+								))}
+								<Button variant="outline" block className="border-dashed" onClick={() => add({ type: 'other' })}>添加链接</Button>
+							</div>
+						)}
+					</FormList>
+				</Form>
+			</Dialog>
+		</Page>
 	)
 }

@@ -1,42 +1,17 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import {
-	Card,
-	Row,
-	Col,
-	Tag,
-	Button,
-	Modal,
-	Form,
-	Input,
-	message,
-	Space,
-	Typography,
-	Spin,
-	Grid,
-	Layout,
-	Empty,
-	Pagination,
-	Checkbox,
-	CheckboxProps,
-	Popconfirm,
-	Select,
-	DatePicker,
-	Switch,
-	Upload,
-	Image
-} from 'antd'
-import { CheckboxChangeEvent } from 'antd/es/checkbox'
-import { EditOutlined, DeleteOutlined, ProjectOutlined, GithubOutlined, CodeOutlined, RocketOutlined, UploadOutlined } from '@ant-design/icons'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import dayjs from 'dayjs'
-import { getProjectConfig, writeProjectConfig, uploadProjectImages } from '../services/project'
-import { throttle } from '../utils/util'
-import styles from '../styles/pages/project.module.scss'
-import { Content } from 'antd/es/layout/layout'
+import { Code2, FileUp, FolderKanban, FolderGit2, Image as ImageIcon, Pencil, Rocket, Star } from 'lucide-react'
+import { CollectionControls } from '../components/CollectionControls'
+import { Page, PageHeader, PageLoading } from '../components/Page'
+import { Button, Checkbox, DatePicker, Form, FormField, Image, Input, Dialog, Pagination, Select, Switch, Textarea, Upload, useForm, useFormWatch } from '../components/ui'
 import { imageAccept } from '../configs/upload-config'
+import { usePagedCollection } from '../hooks/usePagedCollection'
+import { notify } from '../lib/notify'
+import { getProjectConfig, uploadProjectImages, writeProjectConfig } from '../services/project'
+import { cn } from '../lib/utils'
+import { throttle } from '../utils/util'
 
-const { useBreakpoint } = Grid
-
-interface Project {
+interface ProjectItem {
 	id: string
 	title: string
 	description: string
@@ -53,150 +28,120 @@ interface Project {
 	visitUrl?: string
 }
 
+const categoryOptions = [
+	{ label: '网页应用', value: 'web' },
+	{ label: '移动应用', value: 'mobile' },
+	{ label: '桌面应用', value: 'desktop' },
+	{ label: '其他', value: 'other' }
+]
+
+const statusOptions = [
+	{ label: '已完成', value: 'completed' },
+	{ label: '进行中', value: 'in-progress' },
+	{ label: '计划中', value: 'planned' }
+]
+
+const statusStyle = {
+	completed: 'bg-emerald-50 text-emerald-700',
+	'in-progress': 'bg-amber-50 text-amber-700',
+	planned: 'bg-muted text-muted-foreground'
+}
+
 export default function Project() {
-	const screens = useBreakpoint()
-	const [form] = Form.useForm()
+	const form = useForm()
 	const [loading, setLoading] = useState(false)
-	const [projectList, setProjectList] = useState<Project[]>([])
-	const [isModalOpen, setIsModalOpen] = useState(false)
+	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [editingIndex, setEditingIndex] = useState<number>()
-	const [pageList, setPageList] = useState<Project[]>([])
-	const [pageNum, setPageNum] = useState(1)
-	const [pageSize, setPageSize] = useState(12)
-	const [checkedIdxes, setCheckedIdxes] = useState<Set<number>>(new Set())
+	const collection = usePagedCollection<ProjectItem>()
+	const imageUrlValue = useFormWatch('image', form)
 
-	const imageUrlValue = Form.useWatch('image', form)
-
-	const onCheckAllChange: CheckboxProps['onChange'] = (e) => {
-		setCheckedIdxes(e.target.checked ? new Set(pageList.map((_, index) => index)) : new Set())
-	}
-
-	const _handleCheck = (needCheck: boolean, index: number) => {
-		setCheckedIdxes((prev) => {
-			const next = new Set(prev)
-			if (needCheck) next.add(index)
-			else next.delete(index)
-			return next
-		})
-	}
-
-	const onCheckChange = (e: CheckboxChangeEvent, index: number) => {
-		e.stopPropagation()
-		_handleCheck(e?.target?.checked as boolean, index)
-	}
-
-	const onPageChange = async (page: number, size: number) => {
-		setCheckedIdxes(new Set())
-		setPageNum(page)
-		setPageSize(size)
-		setPageList(projectList.slice((page - 1) * size, page * size) || [])
-	}
-
-	const getConfig = useCallback(async (num: number, size: number) => {
+	const getConfig = useCallback(async (page: number, pageSize: number) => {
 		try {
 			setLoading(true)
 			const res = await getProjectConfig()
-			if (res.success) {
-				const data: Project[] = res.data?.projectsData || []
-				setProjectList(data)
-				setPageList(data.slice((num - 1) * size, num * size) || [])
-			}
+			if (res.success) collection.setItems(res.data?.projectsData || [], page, pageSize)
 		} catch {
 		} finally {
 			setLoading(false)
 		}
 	}, [])
 
-	const openEditModal = (e: React.MouseEvent | undefined, index: number) => {
-		e?.stopPropagation()
+	const openEditDialog = (event: MouseEvent | undefined, index: number) => {
+		event?.stopPropagation()
 		setEditingIndex(index)
-		form.resetFields()
-		if (index !== -1) {
-			const item = pageList[index]
-			form.setFieldsValue({
-				...item,
-				startDate: item.startDate ? dayjs(item.startDate) : null,
-				endDate: item.endDate ? dayjs(item.endDate) : null
-			})
+		form.reset()
+		if (index === -1) {
+			form.setValues({ id: `project-${Date.now()}`, techStack: [], tags: [], status: 'planned', category: 'web', featured: false })
 		} else {
-			form.setFieldsValue({
-				id: `project-${Date.now()}`,
-				techStack: [],
-				tags: [],
-				status: 'planned',
-				category: 'web',
-				featured: false
+			const item = collection.pageItems[index]
+			form.setValues({
+				...item,
+				startDate: item.startDate ? dayjs(item.startDate) : undefined,
+				endDate: item.endDate ? dayjs(item.endDate) : undefined
 			})
 		}
-		setIsModalOpen(true)
+		setIsDialogOpen(true)
 	}
 
-	const updateList = useCallback(
-		async (newList: Project[], successMsg: string, num: number, size: number) => {
-			try {
-				setLoading(true)
-				const res = await writeProjectConfig({ projectsData: newList })
-				if (res.success) {
-					message.success(successMsg)
-					setIsModalOpen(false)
-					setCheckedIdxes(new Set())
-					await getConfig(num, size)
-				}
-			} catch {
-			} finally {
-				setLoading(false)
+	const updateList = useCallback(async (items: ProjectItem[], successMessage: string, page: number, pageSize: number) => {
+		try {
+			setLoading(true)
+			const res = await writeProjectConfig({ projectsData: items })
+			if (res.success) {
+				notify.success(successMessage)
+				setIsDialogOpen(false)
+				await getConfig(page, pageSize)
 			}
-		},
-		[getConfig]
-	)
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [getConfig])
 
 	const handleUpload = async (file: File) => {
 		try {
 			setLoading(true)
 			const res = await uploadProjectImages([file])
 			if (res.success) {
-				message.success('上传成功')
-				form.setFieldsValue({ image: res.data?.[0]?.publicPath || '' })
+				notify.success('上传成功')
+				form.setValues({ image: res.data?.[0]?.publicPath || '' })
 			}
 		} catch {
 		} finally {
 			setLoading(false)
-			return false
 		}
+		return false
 	}
 
-	const _handleSave = useCallback(async () => {
+	const handleSave = useCallback(async () => {
 		if (editingIndex === undefined) return
 		try {
-			const values = await form.validateFields()
-			// 处理日期
-			const formattedValues = {
+			const values = await form.validate()
+			const item = {
 				...values,
-				liveDemo: values.visitUrl, // 预览地址和在线演示地址用同一个
-				startDate: values.startDate ? values.startDate.format('YYYY-MM-DD') : '',
-				endDate: values.endDate ? values.endDate.format('YYYY-MM-DD') : ''
+				liveDemo: values.visitUrl,
+				startDate: values.startDate?.format('YYYY-MM-DD') || '',
+				endDate: values.endDate?.format('YYYY-MM-DD') || ''
 			}
-
-			const newList = [...projectList]
-			if (editingIndex !== -1) {
-				const realIndex = projectList.findIndex((item) => item.id === pageList[editingIndex].id)
-				if (realIndex !== -1) newList[realIndex] = formattedValues
+			const items = [...collection.items]
+			if (editingIndex === -1) {
+				items.unshift(item)
 			} else {
-				newList.unshift(formattedValues)
+				const realIndex = items.findIndex((entry) => entry.id === collection.pageItems[editingIndex].id)
+				if (realIndex !== -1) items[realIndex] = item
 			}
-			await updateList(newList, editingIndex === -1 ? '添加成功' : '修改成功', pageNum, pageSize)
+			await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
 		} catch (err) {
 			console.error(err)
 		}
-	}, [updateList, projectList, editingIndex, form, pageList, pageNum, pageSize])
-	const throttledSave = useMemo(() => throttle(_handleSave, 2000, { immediate: true }), [_handleSave])
+	}, [collection.items, collection.page, collection.pageItems, collection.pageSize, editingIndex, form, updateList])
+	const throttledSave = useMemo(() => throttle(handleSave, 2000, { immediate: true }), [handleSave])
 
 	const removeProjects = async () => {
-		const removeIds = new Set(pageList.filter((_, index) => checkedIdxes.has(index)).map((i) => i.id))
-		const newList = projectList.filter((item) => !removeIds.has(item.id))
-		const newTotalPages = Math.max(1, Math.ceil(newList.length / pageSize))
-		const newPageNum = Math.min(pageNum, newTotalPages)
-		await updateList(newList, '删除成功', newPageNum, pageSize)
+		const removeIds = new Set(collection.selectedItems.map((item) => item.id))
+		const items = collection.items.filter((item) => !removeIds.has(item.id))
+		const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
+		await updateList(items, '删除成功', page, collection.pageSize)
 	}
 
 	useEffect(() => {
@@ -204,237 +149,125 @@ export default function Project() {
 	}, [])
 
 	return (
-		<Layout className={styles['layout-container']}>
-			<Content className={styles.content}>
-				<Spin spinning={loading}>
-					<div className={styles.toolbar}>
-						<div className={styles.toolbarTitle}>
-							<Typography.Title level={4} className={styles.pageTitle}>
-								<ProjectOutlined /> 项目管理
-							</Typography.Title>
-							<Typography.Text type="secondary">展示项目作品集</Typography.Text>
-						</div>
-					</div>
+		<Page>
+			<PageHeader eyebrow="Portfolio" title="项目管理" description="维护项目作品、技术栈、状态和访问链接。" />
+			<CollectionControls
+				itemCount={collection.pageItems.length}
+				selectedCount={collection.selected.size}
+				allSelected={collection.allSelected}
+				partiallySelected={collection.partiallySelected}
+				loading={loading}
+				addLabel="新增项目"
+				deleteTitle="删除选中的项目？"
+				deleteDescription="所选项目将从作品集中移除。"
+				onSelectAll={collection.selectAll}
+				onDelete={removeProjects}
+				onAdd={() => openEditDialog(undefined, -1)}
+			/>
 
-					<Space className={styles.actionBar}>
-						{pageList.length > 0 && (
-							<Checkbox
-								onChange={onCheckAllChange}
-								indeterminate={checkedIdxes.size > 0 && checkedIdxes.size < pageList.length}
-								checked={checkedIdxes.size === pageList.length}
+			{loading && !collection.pageItems.length ? (
+				<PageLoading label="正在加载项目..." />
+			) : collection.pageItems.length ? (
+				<div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
+					{collection.pageItems.map((item, index) => {
+						const selected = collection.selected.has(index)
+						const visitUrl = item.visitUrl || item.liveDemo
+						return (
+							<article
+								key={item.id}
+								className={cn('group relative cursor-pointer overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md', selected && 'border-primary ring-2 ring-primary/15')}
+								role="button"
+								tabIndex={0}
+								onClick={() => collection.toggleItem(index)}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter' || event.key === ' ') collection.toggleItem(index)
+								}}
 							>
-								全选
-							</Checkbox>
-						)}
-						{checkedIdxes.size > 0 && (
-							<Popconfirm title="确定删除选中的项目吗?" onConfirm={removeProjects} okText="确定" cancelText="取消">
-								<Button loading={loading} danger icon={<DeleteOutlined />}>
-									删除
-								</Button>
-							</Popconfirm>
-						)}
-						<Button loading={loading} icon={<EditOutlined />} onClick={() => openEditModal(undefined, -1)}>
-							新增项目
-						</Button>
-					</Space>
-
-					{pageList.length > 0 ? (
-						<Row gutter={[8, 8]}>
-							{pageList.map((item, index) => (
-								<Col key={item.id} xs={24} sm={12} lg={8} xl={6}>
-									<Card
-										className={styles.card}
-										hoverable
-										size="small"
-										onClick={() => _handleCheck(!checkedIdxes.has(index), index)}
-										cover={
-											<div className={styles.coverContainer}>
-												{item.image ? (
-													<img loading="lazy" alt={item.title} src={item.image} className={styles.coverImage} />
-												) : (
-													<div className={styles.coverPlaceholder}>
-														<ProjectOutlined className={styles.coverPlaceholderIcon} />
-													</div>
-												)}
-												{item.featured && (
-													<Tag color="blue" variant="solid" className={styles.featuredTag}>
-														精选
-													</Tag>
-												)}
-											</div>
-										}
-										actions={[
-											<EditOutlined key="edit" onClick={(e) => openEditModal(e, index)} />,
-											<a key="source" href={item.sourceCode} target="_blank" onClick={(e) => e.stopPropagation()}>
-												<GithubOutlined />
-											</a>,
-											<a key="visit" href={item.visitUrl || item.liveDemo} target="_blank" onClick={(e) => e.stopPropagation()}>
-												<RocketOutlined />
-											</a>
-										]}
-									>
-										<Checkbox className={styles.cardCheckbox} checked={checkedIdxes.has(index)} onChange={(e) => onCheckChange(e, index)} />
-										<Card.Meta
-											title={item.title}
-											description={
-												<Typography.Paragraph ellipsis={{ rows: 2 }} className={styles.cardDescription}>
-													{item.description}
-												</Typography.Paragraph>
-											}
-										/>
-										<Space wrap size={[4, 0]} className={styles.tagSpace}>
-											<Tag
-												color={item.status === 'completed' ? 'green' : item.status === 'in-progress' ? 'gold' : 'default'}
-												className={styles.statusTag}
-											>
-												{item.status === 'completed' ? '已完成' : item.status === 'in-progress' ? '进行中' : '计划中'}
-											</Tag>
-											{item.techStack?.map((tech) => (
-												<Tag key={tech} color="geekblue" className={styles.techTag}>
-													{tech}
-												</Tag>
-											))}
-										</Space>
-										<Space wrap size={[4, 0]}>
-											{item.tags?.map((tag) => (
-												<Tag key={tag} color="purple" className={styles.tag}>
-													#{tag}
-												</Tag>
-											))}
-										</Space>
-									</Card>
-								</Col>
-							))}
-						</Row>
-					) : (
-						<Empty className={styles.empty} description="快来发布你的第一个项目~" />
-					)}
-
-					{projectList.length > 0 && (
-						<Row justify="center" className={styles.paginationWrapper}>
-							<Pagination
-								size="small"
-								showQuickJumper
-								showSizeChanger
-								current={pageNum}
-								pageSize={pageSize}
-								total={projectList.length}
-								onChange={onPageChange}
-								pageSizeOptions={[12, 24, 48, 96]}
-								className={styles.pagination}
-							/>
-						</Row>
-					)}
-				</Spin>
-
-				<Modal
-					title={editingIndex === -1 ? '新增项目' : '修改项目'}
-					open={isModalOpen}
-					onOk={throttledSave}
-					onCancel={() => setIsModalOpen(false)}
-					width={800}
-					okText="保存"
-					cancelText="取消"
-					centered
-					mask={{ closable: false }}
-					destroyOnHidden
-				>
-					<Form form={form} layout="vertical" initialValues={{ featured: false }}>
-						<Form.Item name="id" hidden>
-							<Input />
-						</Form.Item>
-						<Row gutter={16}>
-							<Col xs={24} md={12}>
-								<Form.Item name="title" label="项目名称" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Input placeholder="例如：Mizuki Blog" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="category" label="分类" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Select
-										options={[
-											{ label: '网页应用', value: 'web' },
-											{ label: '移动应用', value: 'mobile' },
-											{ label: '桌面应用', value: 'desktop' },
-											{ label: 'Other 其他', value: 'other' }
-										]}
-									/>
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="description" label="项目描述" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Input.TextArea rows={3} placeholder="简单介绍一下这个项目..." />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<div className={styles.modalImageWrapper}>
-									<Form.Item className={styles.modalFormItem} name="image" label="项目图片" rules={[{ required: true }]}>
-										<Space.Compact className={styles.fullWidth}>
-											<Form.Item name="image" noStyle>
-												<Input placeholder="输入图片外链" />
-											</Form.Item>
-											<Upload showUploadList={false} beforeUpload={handleUpload} accept={imageAccept}>
-												<Button loading={loading} icon={<UploadOutlined />}>
-													上传
-												</Button>
-											</Upload>
-										</Space.Compact>
-									</Form.Item>
-									{imageUrlValue && (
-										<Image loading="lazy" width={screens.md ? 70 : '100%'} height={70} className={styles.modalImage} src={imageUrlValue} />
-									)}
+								<div className="relative aspect-video overflow-hidden bg-muted">
+									{item.image ? <img src={item.image} alt={item.title} loading="lazy" className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <ImageIcon className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/40" />}
+									{item.featured && <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground"><Star className="size-3 fill-current" />精选</span>}
+									<Checkbox className="absolute right-3 top-3 rounded bg-background/85 p-1" checked={selected} onCheckedChange={(checked) => collection.setItemSelected(index, checked)} />
 								</div>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="status" label="项目状态" className={styles.modalFormItem}>
-									<Select
-										options={[
-											{ label: '已完成', value: 'completed' },
-											{ label: '进行中', value: 'in-progress' },
-											{ label: '计划中', value: 'planned' }
-										]}
-									/>
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="visitUrl" label="预览地址" className={styles.modalFormItem}>
-									<Input prefix={<RocketOutlined />} placeholder="输入预览地址" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="sourceCode" label="源码地址" className={styles.modalFormItem}>
-									<Input prefix={<GithubOutlined />} placeholder="GitHub Repo URL" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="startDate" label="开始日期" className={styles.modalFormItem} rules={[{ required: true }]}>
-									<DatePicker className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="endDate" label="结束日期" className={styles.modalFormItem}>
-									<DatePicker className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={6}>
-								<Form.Item name="featured" label="是否精选" valuePropName="checked" className={styles.modalFormItem}>
-									<Switch />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="techStack" label="技术栈" className={styles.modalFormItem}>
-									<Select mode="tags" prefix={<CodeOutlined />} placeholder="添加技术栈, 如: React" />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="tags" label="标签" className={styles.modalFormItem}>
-									<Select mode="tags" placeholder="添加项目标签" />
-								</Form.Item>
-							</Col>
-						</Row>
-					</Form>
-				</Modal>
-			</Content>
-		</Layout>
+								<div className="p-4">
+									<div className="flex items-start justify-between gap-2">
+										<h2 className="min-w-0 truncate font-semibold">{item.title}</h2>
+										<span className={cn('shrink-0 rounded-md px-2 py-0.5 text-[11px]', statusStyle[item.status])}>{statusOptions.find((option) => option.value === item.status)?.label}</span>
+									</div>
+									<p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">{item.description}</p>
+									<div className="mt-3 flex min-h-6 flex-wrap gap-1.5">
+										{item.techStack?.slice(0, 4).map((tech) => <span key={tech} className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700">{tech}</span>)}
+									</div>
+									<div className="mt-4 flex justify-end gap-1 border-t pt-3">
+										{item.sourceCode && <a href={item.sourceCode} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground" aria-label={`查看 ${item.title} 源码`} onClick={(event) => event.stopPropagation()}><FolderGit2 className="size-4" /></a>}
+										{visitUrl && <a href={visitUrl} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-primary" aria-label={`访问 ${item.title}`} onClick={(event) => event.stopPropagation()}><Rocket className="size-4" /></a>}
+										<Button variant="ghost" size="small" className="size-8 px-0" aria-label={`编辑 ${item.title}`} onClick={(event) => openEditDialog(event, index)}><Pencil className="size-4" /></Button>
+									</div>
+								</div>
+							</article>
+						)
+					})}
+				</div>
+			) : (
+				<div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
+					<FolderKanban className="size-10 opacity-40" />
+					<p>快来发布你的第一个项目</p>
+				</div>
+			)}
+
+			{collection.items.length > 0 && (
+				<Pagination
+					current={collection.page}
+					pageSize={collection.pageSize}
+					total={collection.items.length}
+					pageSizeOptions={[12, 24, 48, 96]}
+					showQuickJumper
+					showSizeChanger
+					onChange={collection.changePage}
+				/>
+			)}
+
+			<Dialog
+				title={editingIndex === -1 ? '新增项目' : '修改项目'}
+				open={isDialogOpen}
+				onSubmit={throttledSave}
+				onCancel={() => setIsDialogOpen(false)}
+				width={800}
+				confirmLabel="保存"
+				closeOnOutside={false}
+			>
+				<Form form={form} initialValues={{ featured: false }}>
+					<div className="grid gap-x-4 md:grid-cols-2">
+						<FormField name="title" label="项目名称" rules={[{ required: true }]}>
+							<Input placeholder="例如：Mizuki Blog" />
+						</FormField>
+						<FormField name="category" label="分类" rules={[{ required: true }]}>
+							<Select options={categoryOptions} />
+						</FormField>
+					</div>
+					<FormField name="description" label="项目描述" rules={[{ required: true }]}>
+						<Textarea rows={3} placeholder="简单介绍一下这个项目..." />
+					</FormField>
+					<div className="flex items-start gap-3">
+						<FormField name="image" label="项目图片" rules={[{ required: true }]} className="min-w-0 flex-1">
+							<Input placeholder="输入图片外链" />
+						</FormField>
+						<Upload beforeUpload={handleUpload} accept={imageAccept} disabled={loading}>
+							<Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>上传</Button>
+						</Upload>
+					</div>
+					{imageUrlValue && <Image src={imageUrlValue} alt="项目图片预览" className="mb-4 h-28 w-full rounded-lg border object-contain" />}
+					<div className="grid gap-x-4 md:grid-cols-2">
+						<FormField name="status" label="项目状态"><Select options={statusOptions} /></FormField>
+						<FormField name="visitUrl" label="预览地址"><Input prefix={<Rocket className="size-4" />} placeholder="输入预览地址" /></FormField>
+						<FormField name="sourceCode" label="源码地址"><Input prefix={<FolderGit2 className="size-4" />} placeholder="GitHub Repo URL" /></FormField>
+						<FormField name="startDate" label="开始日期" rules={[{ required: true }]}><DatePicker /></FormField>
+						<FormField name="endDate" label="结束日期"><DatePicker /></FormField>
+						<FormField name="featured" label="是否精选" valueKey="checked"><Switch /></FormField>
+					</div>
+					<FormField name="techStack" label="技术栈"><Select mode="tags" prefix={<Code2 className="size-4" />} placeholder="输入技术栈后按回车" /></FormField>
+					<FormField name="tags" label="标签"><Select mode="tags" placeholder="输入项目标签后按回车" /></FormField>
+				</Form>
+			</Dialog>
+		</Page>
 	)
 }

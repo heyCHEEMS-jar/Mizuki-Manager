@@ -1,36 +1,14 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import {
-	Card,
-	Row,
-	Col,
-	Tag,
-	Button,
-	Modal,
-	Form,
-	Input,
-	message,
-	Upload,
-	Image,
-	Space,
-	Typography,
-	Spin,
-	Grid,
-	Layout,
-	Empty,
-	Pagination,
-	Checkbox,
-	CheckboxProps,
-	Popconfirm,
-	CheckboxChangeEvent
-} from 'antd'
-import { EditOutlined, UploadOutlined, LinkOutlined, DeleteOutlined, BoxPlotOutlined } from '@ant-design/icons'
-import { getDeviceConfig, writeDeviceConfig, uploadDeviceImages } from '../services/device'
-import { throttle } from '../utils/util'
-import styles from '../styles/pages/device.module.scss'
-import { Content } from 'antd/es/layout/layout'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { Box, ExternalLink, FileUp, Pencil } from 'lucide-react'
+import { CollectionControls } from '../components/CollectionControls'
+import { Page, PageHeader, PageLoading } from '../components/Page'
+import { Button, Checkbox, Form, FormField, Image, Input, Dialog, Pagination, Textarea, Upload, useForm, useFormWatch } from '../components/ui'
 import { imageAccept } from '../configs/upload-config'
-
-const { useBreakpoint } = Grid
+import { usePagedCollection } from '../hooks/usePagedCollection'
+import { notify } from '../lib/notify'
+import { getDeviceConfig, uploadDeviceImages, writeDeviceConfig } from '../services/device'
+import { cn } from '../lib/utils'
+import { throttle } from '../utils/util'
 
 interface DeviceItem {
 	name: string
@@ -38,68 +16,31 @@ interface DeviceItem {
 	specs: string
 	description: string
 	link: string
-	category?: string // 所属分类,默认为Other
+	category?: string
 }
 
 interface DeviceData {
 	devicesData: Record<string, DeviceItem[]>
 }
 
-const DEFAULT_CATEGORY = 'Other' // 默认分类
+const DEFAULT_CATEGORY = 'Other'
 
 export default function Device() {
-	const screens = useBreakpoint()
-	const [form] = Form.useForm()
+	const form = useForm()
 	const [loading, setLoading] = useState(false)
-	const [deviceList, setDeviceList] = useState<DeviceItem[]>([]) // 扁平化总列表
-	const [isModalOpen, setIsModalOpen] = useState(false)
+	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [editingIndex, setEditingIndex] = useState<number>()
-	const [pageList, setPageList] = useState<DeviceItem[]>([])
-	const [pageNum, setPageNum] = useState(1)
-	const [pageSize, setPageSize] = useState(12)
-	const [checkedIdxes, setCheckedIdxes] = useState<Set<number>>(new Set())
+	const collection = usePagedCollection<DeviceItem>()
+	const imageValue = useFormWatch('image', form)
 
-	const imageValue = Form.useWatch('image', form)
-
-	const onCheckAllChange: CheckboxProps['onChange'] = (e) => {
-		setCheckedIdxes(e.target.checked ? new Set(pageList.map((_, index) => index)) : new Set())
-	}
-
-	const _handleCheck = (needCheck: boolean, index: number) => {
-		setCheckedIdxes((prev) => {
-			const next = new Set(prev)
-			if (needCheck) next.add(index)
-			else next.delete(index)
-			return next
-		})
-	}
-
-	const onCheckChange = (e: CheckboxChangeEvent, index: number) => {
-		e.stopPropagation()
-		_handleCheck(e?.target?.checked, index)
-	}
-
-	const toggleCheck = (index: number) => {
-		const needCheck = !checkedIdxes.has(index)
-		_handleCheck(needCheck, index)
-	}
-
-	const onPageChange = async (page: number, size: number) => {
-		setCheckedIdxes(new Set())
-		setPageNum(page)
-		setPageSize(size)
-		setPageList(deviceList.slice((page - 1) * size, page * size) || [])
-	}
-
-	const getConfig = useCallback(async (num: number, size: number) => {
+	const getConfig = useCallback(async (page: number, pageSize: number) => {
 		try {
 			setLoading(true)
 			const res = await getDeviceConfig()
 			if (res.success) {
-				const rawData = (res.data as DeviceData)?.devicesData || {}
-				const flatData: DeviceItem[] = Object.keys(rawData).flatMap((cat) => rawData[cat].map((item) => ({ ...item, category: cat })))
-				setDeviceList(flatData)
-				setPageList(flatData.slice((num - 1) * size, num * size) || [])
+				const grouped = (res.data as DeviceData)?.devicesData || {}
+				const items = Object.entries(grouped).flatMap(([category, devices]) => devices.map((device) => ({ ...device, category })))
+				collection.setItems(items, page, pageSize)
 			}
 		} catch {
 		} finally {
@@ -107,265 +48,193 @@ export default function Device() {
 		}
 	}, [])
 
-	const openEditModal = (e: React.MouseEvent | undefined, index: number) => {
-		e?.stopPropagation()
+	const openEditDialog = (event: MouseEvent | undefined, index: number) => {
+		event?.stopPropagation()
 		setEditingIndex(index)
-		form.resetFields()
-		if (index !== -1) {
-			// 修改回显数据
-			form.setFieldsValue(pageList[index])
-		}
-		setIsModalOpen(true)
+		form.reset()
+		if (index !== -1) form.setValues(collection.pageItems[index])
+		setIsDialogOpen(true)
 	}
 
-	const updateList = useCallback(
-		async (newList: DeviceItem[], successMsg: string, num: number, size: number) => {
-			try {
-				setLoading(true)
-				let devicesData: Record<string, DeviceItem[]> = {}
-				// 恢复原结构 [ { [category]: { [name]:xxx, [xxx]:xxx } } ]
-				newList.forEach((item) => {
-					const cat = item.category || DEFAULT_CATEGORY
-					if (!devicesData[cat]) devicesData[cat] = []
-					const { category, ...data } = item
-					devicesData[cat].push(data as DeviceItem)
-				})
-				// 默认分类放最后一个
-				if (DEFAULT_CATEGORY in devicesData) {
-					const { [DEFAULT_CATEGORY]: defaultCat, ...others } = devicesData
-					devicesData = { ...others, [DEFAULT_CATEGORY]: defaultCat }
-				}
-				const res = await writeDeviceConfig({ devicesData })
-				if (res.success) {
-					message.success(successMsg)
-					setIsModalOpen(false)
-					setCheckedIdxes(new Set())
-					await getConfig(num, size)
-				}
-			} catch {
-			} finally {
-				setLoading(false)
+	const updateList = useCallback(async (items: DeviceItem[], successMessage: string, page: number, pageSize: number) => {
+		try {
+			setLoading(true)
+			let devicesData: Record<string, DeviceItem[]> = {}
+			items.forEach(({ category = DEFAULT_CATEGORY, ...device }) => {
+				if (!devicesData[category]) devicesData[category] = []
+				devicesData[category].push(device)
+			})
+			if (DEFAULT_CATEGORY in devicesData) {
+				const { [DEFAULT_CATEGORY]: defaultDevices, ...otherDevices } = devicesData
+				devicesData = { ...otherDevices, [DEFAULT_CATEGORY]: defaultDevices }
 			}
-		},
-		[getConfig]
-	)
+			const res = await writeDeviceConfig({ devicesData })
+			if (res.success) {
+				notify.success(successMessage)
+				setIsDialogOpen(false)
+				await getConfig(page, pageSize)
+			}
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [getConfig])
 
-	const _handleSave = useCallback(async () => {
+	const handleSave = useCallback(async () => {
 		if (editingIndex === undefined) return
 		try {
-			const values = await form.validateFields()
-			const newList = [...deviceList]
-			if (editingIndex !== -1) {
-				const realIndex = deviceList.findIndex((item) => item === pageList[editingIndex])
-				// 不改变原有设备位置顺序
-				if (realIndex !== -1) newList[realIndex] = values
+			const values = await form.validate()
+			const items = [...collection.items]
+			if (editingIndex === -1) {
+				items.unshift(values)
 			} else {
-				newList.unshift(values)
+				const realIndex = items.indexOf(collection.pageItems[editingIndex])
+				if (realIndex !== -1) items[realIndex] = values
 			}
-			await updateList(newList, editingIndex === -1 ? '添加成功' : '修改成功', pageNum, pageSize)
+			await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
 		} catch (err) {
 			console.error(err)
 		}
-	}, [updateList, deviceList, editingIndex, form, pageList, pageNum, pageSize])
-	const throttledSave = useMemo(() => throttle(_handleSave, 2000, { immediate: true }), [_handleSave])
+	}, [collection.items, collection.page, collection.pageItems, collection.pageSize, editingIndex, form, updateList])
+	const throttledSave = useMemo(() => throttle(handleSave, 2000, { immediate: true }), [handleSave])
 
 	const uploadCover = async (file: File) => {
 		try {
 			setLoading(true)
 			const res = await uploadDeviceImages([file])
 			if (res.success) {
-				message.success('上传成功')
-				form.setFieldsValue({ image: res.data?.[0]?.publicPath || '' })
+				notify.success('上传成功')
+				form.setValues({ image: res.data?.[0]?.publicPath || '' })
 			}
 		} catch {
 		} finally {
 			setLoading(false)
-			return false
 		}
+		return false
 	}
 
-	const removeDevice = async () => {
-		const removeItems = new Set(pageList.filter((_, index) => checkedIdxes.has(index)))
-		const newList = deviceList.filter((item) => !removeItems.has(item))
-		// 删除后的分页总数
-		const newTotalPages = Math.max(1, Math.ceil(newList.length / pageSize))
-		// 计算删除后应该更新的pageNum值
-		const newPageNum = Math.min(pageNum, newTotalPages)
-		await updateList(newList, '删除成功', newPageNum, pageSize)
+	const removeDevices = async () => {
+		const removeItems = new Set(collection.selectedItems)
+		const items = collection.items.filter((item) => !removeItems.has(item))
+		const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
+		await updateList(items, '删除成功', page, collection.pageSize)
 	}
 
-	// 初始化
 	useEffect(() => {
 		getConfig(1, 12)
 	}, [])
 
 	return (
-		<Layout className={styles['layout-container']}>
-			<Content className={styles.content}>
-				<Spin spinning={loading}>
-					<div className={styles.toolbar}>
-						<div className={styles.toolbarTitle}>
-							<Typography.Title level={4} className={styles.pageTitle}>
-								<BoxPlotOutlined /> 设备清单
-							</Typography.Title>
-							<Typography.Text type="secondary">管理数码设备</Typography.Text>
-						</div>
-					</div>
+		<Page>
+			<PageHeader eyebrow="Inventory" title="设备清单" description="管理数码设备、规格信息与产品链接。" />
+			<CollectionControls
+				itemCount={collection.pageItems.length}
+				selectedCount={collection.selected.size}
+				allSelected={collection.allSelected}
+				partiallySelected={collection.partiallySelected}
+				loading={loading}
+				addLabel="添加设备"
+				deleteTitle="删除选中的设备？"
+				deleteDescription="所选设备将从配置中移除。"
+				onSelectAll={collection.selectAll}
+				onDelete={removeDevices}
+				onAdd={() => openEditDialog(undefined, -1)}
+			/>
 
-					<Space>
-						{pageList.length > 0 && (
-							<Checkbox
-								onChange={onCheckAllChange}
-								indeterminate={checkedIdxes.size > 0 && checkedIdxes.size < pageList.length}
-								checked={checkedIdxes.size === pageList.length}
+			{loading && !collection.pageItems.length ? (
+				<PageLoading label="正在加载设备..." />
+			) : collection.pageItems.length ? (
+				<div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
+					{collection.pageItems.map((item, index) => {
+						const selected = collection.selected.has(index)
+						return (
+							<article
+								key={`${item.category}-${item.name}-${index}`}
+								className={cn('group relative cursor-pointer overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md', selected && 'border-primary ring-2 ring-primary/15')}
+								role="button"
+								tabIndex={0}
+								onClick={() => collection.toggleItem(index)}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter' || event.key === ' ') collection.toggleItem(index)
+								}}
 							>
-								全选
-							</Checkbox>
-						)}
-						{checkedIdxes.size > 0 && (
-							<Popconfirm title="确定删除?" onConfirm={removeDevice} okText="确定" cancelText="取消">
-								<Button loading={loading} icon={<DeleteOutlined />}>
-									删除
-								</Button>
-							</Popconfirm>
-						)}
-						<Button loading={loading} icon={<EditOutlined />} onClick={() => openEditModal(undefined, -1)}>
-							添加设备
-						</Button>
-					</Space>
-
-					{pageList.length > 0 ? (
-						<Row gutter={[4, 4]} className={styles.deviceListRow}>
-							{pageList.map((item, index) => (
-								<Col key={index} xs={12} sm={8} md={12} lg={6}>
-									<Card
-										className={styles.card}
-										hoverable
-										size="small"
-										cover={
-											<div className={styles.cover} onClick={(e) => e.stopPropagation()}>
-												{item.image && <Image loading="lazy" height="100%" width="100%" className={styles.coverImage} src={item.image} />}
-												<Tag color="black" className={styles.tag}>
-													{item.category}
-												</Tag>
-												<Checkbox
-													className={styles.coverCheckbox}
-													style={{ opacity: checkedIdxes.has(index) ? 1 : 0.4 }}
-													checked={checkedIdxes.has(index)}
-													onChange={(e) => onCheckChange(e, index)}
-												/>
-											</div>
-										}
-										actions={[
-											<a href={item.link} target="_blank" onClick={(e) => e.stopPropagation()}>
-												<LinkOutlined />
-											</a>,
-											<EditOutlined onClick={(e) => openEditModal(e, index)} />
-										]}
-										onClick={() => toggleCheck(index)}
-									>
-										<Card.Meta
-											title={
-												<Typography.Text ellipsis={{ tooltip: item.name }} className={styles.deviceName}>
-													{item.name}
-												</Typography.Text>
-											}
-											description={
-												<Space orientation="vertical" className={styles.cardDescription}>
-													<Typography.Text type="secondary" ellipsis>
-														{item.specs}
-													</Typography.Text>
-													<Typography.Text type="secondary" className={styles.deviceDescription} ellipsis={{ tooltip: item.description }}>
-														{item.description}
-													</Typography.Text>
-												</Space>
-											}
-										/>
-									</Card>
-								</Col>
-							))}
-						</Row>
-					) : (
-						<Empty className={styles.empty} description="暂无设备数据" />
-					)}
-
-					{deviceList.length > 0 && (
-						<Row>
-							<Pagination
-								size="small"
-								showQuickJumper
-								showSizeChanger
-								current={pageNum}
-								pageSize={pageSize}
-								total={deviceList.length}
-								onChange={onPageChange}
-								pageSizeOptions={[12, 24, 48, 96]}
-								className={styles.pagination}
-							/>
-						</Row>
-					)}
-				</Spin>
-
-				<Modal
-					title="编辑设备信息"
-					open={isModalOpen}
-					onOk={throttledSave}
-					onCancel={() => setIsModalOpen(false)}
-					width={screens.md ? 600 : '95%'}
-					okText="保存"
-					cancelText="取消"
-					mask={{ closable: false }}
-					destroyOnHidden
-					centered
-				>
-					<Form form={form} layout="vertical">
-						<Row gutter={[8, 0]}>
-							<Col xs={24} md={16}>
-								<Form.Item name="name" label="设备名称" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Input placeholder="输入设备名称" />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={8}>
-								<Form.Item name="category" label={`分类(默认为${DEFAULT_CATEGORY})`} className={styles.modalFormItem}>
-									<Input placeholder="如: OnePlus" />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="specs" label="规格配置" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Input placeholder="如: Gray / 16G + 1TB" />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<div className={styles.modalImageWrapper}>
-									<Form.Item className={styles.modalFormItem} name="image" label="设备图片" rules={[{ required: true }]}>
-										<Space.Compact className={styles.fullWidth}>
-											<Form.Item name="image" noStyle>
-												<Input placeholder="输入图片外链" />
-											</Form.Item>
-											<Upload showUploadList={false} beforeUpload={uploadCover} accept={imageAccept}>
-												<Button loading={loading} icon={<UploadOutlined />}>
-													上传
-												</Button>
-											</Upload>
-										</Space.Compact>
-									</Form.Item>
-									{imageValue && <Image loading="lazy" width={screens.md ? 70 : '100%'} height={70} className={styles.modalImage} src={imageValue} />}
+								<div className="relative aspect-[4/3] overflow-hidden bg-muted">
+									{item.image ? <Image src={item.image} alt={item.name} loading="lazy" className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <Box className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/40" />}
+									<span className="absolute left-3 top-3 rounded-md bg-black/65 px-2 py-1 text-xs text-white backdrop-blur">{item.category || DEFAULT_CATEGORY}</span>
+									<Checkbox className="absolute right-3 top-3 rounded bg-background/85 p-1" checked={selected} onCheckedChange={(checked) => collection.setItemSelected(index, checked)} />
 								</div>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="link" label="产品链接" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Input placeholder="输入跳转外链" />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="description" label="详细描述" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Input.TextArea placeholder="输入详细描述" rows={3} />
-								</Form.Item>
-							</Col>
-						</Row>
-					</Form>
-				</Modal>
-			</Content>
-		</Layout>
+								<div className="p-4">
+									<h2 className="truncate font-semibold">{item.name}</h2>
+									<p className="mt-1 truncate text-sm text-muted-foreground">{item.specs}</p>
+									<p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">{item.description}</p>
+									<div className="mt-4 flex items-center justify-end gap-1 border-t pt-3">
+										<a href={item.link} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-primary" aria-label={`访问 ${item.name}`} onClick={(event) => event.stopPropagation()}>
+											<ExternalLink className="size-4" />
+										</a>
+										<Button variant="ghost" size="small" className="size-8 px-0" aria-label={`编辑 ${item.name}`} onClick={(event) => openEditDialog(event, index)}><Pencil className="size-4" /></Button>
+									</div>
+								</div>
+							</article>
+						)
+					})}
+				</div>
+			) : (
+				<div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
+					<Box className="size-10 opacity-40" />
+					<p>暂无设备数据</p>
+				</div>
+			)}
+
+			{collection.items.length > 0 && (
+				<Pagination
+					current={collection.page}
+					pageSize={collection.pageSize}
+					total={collection.items.length}
+					pageSizeOptions={[12, 24, 48, 96]}
+					showQuickJumper
+					showSizeChanger
+					onChange={collection.changePage}
+				/>
+			)}
+
+			<Dialog
+				title={editingIndex === -1 ? '添加设备' : '编辑设备'}
+				open={isDialogOpen}
+				onSubmit={throttledSave}
+				onCancel={() => setIsDialogOpen(false)}
+				width={640}
+				confirmLabel="保存"
+				closeOnOutside={false}
+			>
+				<Form form={form}>
+					<div className="grid gap-x-4 md:grid-cols-3">
+						<FormField name="name" label="设备名称" rules={[{ required: true }]} className="md:col-span-2">
+							<Input placeholder="输入设备名称" />
+						</FormField>
+						<FormField name="category" label={`分类（默认 ${DEFAULT_CATEGORY}）`}>
+							<Input placeholder="如：OnePlus" />
+						</FormField>
+					</div>
+					<FormField name="specs" label="规格配置" rules={[{ required: true }]}>
+						<Input placeholder="如：Gray / 16G + 1TB" />
+					</FormField>
+					<div className="flex items-start gap-3">
+						<FormField name="image" label="设备图片" rules={[{ required: true }]} className="min-w-0 flex-1">
+							<Input placeholder="输入图片外链" />
+						</FormField>
+						<Upload beforeUpload={uploadCover} accept={imageAccept} disabled={loading}>
+							<Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>上传</Button>
+						</Upload>
+					</div>
+					{imageValue && <Image src={imageValue} alt="设备图片预览" className="mb-4 h-24 w-full rounded-lg border object-contain" />}
+					<FormField name="link" label="产品链接" rules={[{ required: true }]}>
+						<Input prefix={<ExternalLink className="size-4" />} placeholder="输入跳转外链" />
+					</FormField>
+					<FormField name="description" label="详细描述" rules={[{ required: true }]}>
+						<Textarea placeholder="输入详细描述" rows={3} />
+					</FormField>
+				</Form>
+			</Dialog>
+		</Page>
 	)
 }

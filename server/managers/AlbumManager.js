@@ -199,7 +199,7 @@ class AlbumManager extends BaseManager {
 			})) // 分页文件
 			for (const file of slicedFiles) {
 				const { filename, filePath } = file
-				const url = filePath.split('public', 2)[1].replaceAll('\\', '/')
+				const url = `/${path.relative(config.PUBLIC_DIR, filePath).split(path.sep).join('/')}`
 				files.push({
 					filename,
 					filePath,

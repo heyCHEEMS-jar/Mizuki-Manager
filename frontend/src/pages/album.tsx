@@ -1,154 +1,99 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-	Layout,
-	Menu,
-	Card,
-	Button,
-	Space,
-	Modal,
-	Typography,
-	Upload,
-	Empty,
-	Spin,
-	Row,
-	Col,
-	Drawer,
-	Grid,
-	Image,
-	message,
-	Checkbox,
-	CheckboxProps,
-	CheckboxChangeEvent,
-	Popconfirm,
-	Pagination,
-	Dropdown,
-	MenuProps,
-	Select,
-	Form,
-	DatePicker,
-	Input,
-	Switch,
-	Alert
-} from 'antd'
-import { FolderOutlined, UploadOutlined, EditOutlined, PlusOutlined, FolderOpenOutlined, DeleteOutlined, EllipsisOutlined } from '@ant-design/icons'
-import styles from '../styles/pages/album.module.scss'
-import {
-	getFolders,
-	createFolder,
-	deleteFolder,
-	getFolderFiles,
-	uploadAlbumFiles,
-	deleteFiles,
-	getInfo,
-	updateInfo,
-	renameFolder
-} from '../services/album'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
-import { formatTime, throttle } from '../utils/util'
+import { Copy, FileImage, FileUp, Folder, FolderOpen, FolderPlus, Pencil, Settings2, Trash2 } from 'lucide-react'
+import { Page, PageHeader, PageLoading } from '../components/Page'
+import { Button, Checkbox, ConfirmDialog, DatePicker, Sheet, Form, FormField, FormList, Image, Input, Dialog, Pagination, Select, Switch, Textarea, Upload, useForm, useFormWatch } from '../components/ui'
 import { imageAccept } from '../configs/upload-config'
+import { notify } from '../lib/notify'
+import { createFolder, deleteFiles, deleteFolder, getFolderFiles, getFolders, getInfo, renameFolder, updateInfo, uploadAlbumFiles } from '../services/album'
+import { cn } from '../lib/utils'
+import { formatTime, throttle } from '../utils/util'
 
-const { Sider, Content } = Layout
-const { useBreakpoint } = Grid
+type AlbumMode = 'external' | ''
 
-type AlbumMode = 'external' | '' // 不设置则为本地模式
 interface PhotoItem {
 	src: string
 	alt?: string
 }
+
 interface AlbumInfo {
 	mode?: AlbumMode
 	hidden?: boolean
 	title?: string
 	description?: string
-	date?: string // 格式：YYYY-MM-DD
+	date?: string
 	location?: string
 	tags?: string[]
 	layout?: 'grid' | 'masonry'
-	columns?: number // 默认 3
-	// 外链模式
+	columns?: number
 	cover?: string
 	photos?: PhotoItem[]
 }
+
 interface FolderItem {
 	folderName: string
 	folderPath: string
 }
+
 interface FileItem {
 	filename: string
 	filePath: string
 	url: string
 }
-const dropdownOpts: MenuProps['items'] = [
-	{
-		label: '重命名',
-		key: 'rename'
-	},
-	{
-		label: '删除',
-		key: 'delete'
-	}
-]
+
+const toPublicPath = (filePath: string) => {
+	const normalized = filePath.replace(/\\/g, '/')
+	const markerIndex = normalized.lastIndexOf('/public/')
+	return markerIndex === -1 ? normalized : normalized.slice(markerIndex + '/public'.length)
+}
 
 export default function Album() {
-	const screens = useBreakpoint()
-	const [form] = Form.useForm()
-	const currentMode: AlbumMode = Form.useWatch('mode', form)
+	const form = useForm()
+	const currentMode: AlbumMode = useFormWatch('mode', form)
 	const [loading, setLoading] = useState(false)
-	const [folders, setFolders] = useState<FolderItem[]>([]) // 所有文件夹
-	const [files, setFiles] = useState<FileItem[]>([]) // 当前文件夹下所有文件(分页)
-	const [curFolderPath, setCurFolderPath] = useState<string>('') // 当前选中的文件夹路径
-	const [drawerVisible, setDrawerVisible] = useState(false) // 移动端侧边抽屉
-	const [isModalOpen, setIsModalOpen] = useState(false) // 配置编辑窗口
-	const [checkedPaths, setCheckedPaths] = useState<Set<string>>(new Set()) // 选中对象的路径数组
-	const [pageNum, setPageNum] = useState(1) // 当前页数
-	const [pageSize, setPageSize] = useState(12) // 每页数量
-	const [pageTotal, setPageTotal] = useState(0) // 相册图片总量
+	const [folders, setFolders] = useState<FolderItem[]>([])
+	const [files, setFiles] = useState<FileItem[]>([])
+	const [curFolderPath, setCurFolderPath] = useState('')
+	const [sheetOpen, setSheetOpen] = useState(false)
+	const [isDialogOpen, setIsDialogOpen] = useState(false)
+	const [checkedPaths, setCheckedPaths] = useState<Set<string>>(new Set())
+	const [pageNum, setPageNum] = useState(1)
+	const [pageSize, setPageSize] = useState(12)
+	const [pageTotal, setPageTotal] = useState(0)
+	const currentFolder = folders.find((folder) => folder.folderPath === curFolderPath)
 
 	const copy = async (text: string) => {
 		try {
 			await navigator.clipboard.writeText(text)
-			message.success('已复制到剪切板')
+			notify.success('已复制到剪切板')
 		} catch {
-			message.error('复制失败')
+			notify.error('复制失败')
 		}
 	}
 
-	// 全选
-	const onCheckAllChange: CheckboxProps['onChange'] = (e) => {
-		setCheckedPaths(e.target.checked ? new Set(files.map((file) => file.filePath)) : new Set())
-	}
-
-	const _handleCheck = (needCheck: boolean, filePath: string) => {
-		setCheckedPaths((prev) => {
-			const next = new Set(prev)
-			if (needCheck) {
-				next.add(filePath)
-			} else {
-				next.delete(filePath)
-			}
+	const setFileChecked = (filePath: string, checked: boolean) => {
+		setCheckedPaths((current) => {
+			const next = new Set(current)
+			if (checked) next.add(filePath)
+			else next.delete(filePath)
 			return next
 		})
 	}
 
-	// 复选框勾选
-	const onCheckChange = (e: CheckboxChangeEvent, filePath: string) => {
-		e.stopPropagation()
-		_handleCheck(e?.target?.checked, filePath)
+	const toggleFile = (filePath: string) => {
+		setCheckedPaths((current) => {
+			const next = new Set(current)
+			if (next.has(filePath)) next.delete(filePath)
+			else next.add(filePath)
+			return next
+		})
 	}
 
-	// 切换复选框勾选
-	const toggleCheck = (filePath: string) => {
-		const needCheck = !checkedPaths.has(filePath)
-		_handleCheck(needCheck, filePath)
-	}
-
-	// 获取所有文件夹
 	const getAllFolders = useCallback(async () => {
 		try {
 			setLoading(true)
 			const res = await getFolders()
-			const data = res.data
-			if (data) setFolders(data)
+			if (res.data) setFolders(res.data)
 			else throw new Error('未从响应中获取到文件夹列表')
 		} catch {
 		} finally {
@@ -156,51 +101,44 @@ export default function Album() {
 		}
 	}, [])
 
-	// 获取所有文件(分页)
-	const getAllFiles = useCallback(async (folderPath: string, num: number, size: number) => {
+	const getAllFiles = useCallback(async (folderPath: string, page: number, size: number) => {
 		if (!folderPath) return
 		try {
 			setLoading(true)
-			const res = await getFolderFiles(folderPath, num, size)
-			const { files, total } = res.data || {}
-			if (files) setFiles(files)
-			if (total !== undefined) setPageTotal(total)
-			else throw new Error('未从响应中获取到文件列表')
+			const res = await getFolderFiles(folderPath, page, size)
+			const data = res.data || {}
+			setFiles(data.files || [])
+			setPageTotal(data.total ?? 0)
 		} catch {
 		} finally {
 			setLoading(false)
 		}
 	}, [])
 
-	// 选中目录
-	const selectFolder = useCallback(
-		async (folderPath: string) => {
-			if (!folderPath) return
-			setCurFolderPath(folderPath) // 更新选中文件夹
-			setCheckedPaths(new Set()) // 清空全选
-			setPageNum(1)
-			setPageSize(12)
-			await getAllFiles(folderPath, 1, 12)
-		},
-		[getAllFiles]
-	)
+	const selectFolder = useCallback(async (folderPath: string) => {
+		if (!folderPath) return
+		setCurFolderPath(folderPath)
+		setCheckedPaths(new Set())
+		setPageNum(1)
+		setPageSize(12)
+		setSheetOpen(false)
+		await getAllFiles(folderPath, 1, 12)
+	}, [getAllFiles])
 
-	// 创建文件夹
 	const addFolder = async () => {
 		try {
 			setLoading(true)
 			const folderName = prompt('输入创建的目录名称')
 			if (folderName === null) return
-			if (!folderName?.trim()) {
-				message.warning('目录名称不能为空')
+			if (!folderName.trim()) {
+				notify.warning('目录名称不能为空')
 				return
 			}
 			const res = await createFolder(folderName.trim())
 			if (res.success) {
-				message.success('创建成功')
-				const { folderPath } = res.data || {}
+				notify.success('创建成功')
 				await getAllFolders()
-				await selectFolder(folderPath)
+				if (res.data?.folderPath) await selectFolder(res.data.folderPath)
 			}
 		} catch {
 		} finally {
@@ -208,514 +146,340 @@ export default function Album() {
 		}
 	}
 
-	// 上传相册图片(批量)
 	const uploadFiles = async (file: File, fileList: File[]) => {
-		if (file !== fileList[fileList.length - 1]) return // 只执行一次上传
+		if (file !== fileList[fileList.length - 1]) return false
 		try {
 			setLoading(true)
 			const res = await uploadAlbumFiles(curFolderPath, fileList)
-			if (res.success) message.success('上传成功')
+			if (res.success) notify.success('上传成功')
 		} catch {
 		} finally {
-			// 批量上传时如果有至少一个失败就会catch, 所以无论成功失败都要重新获取列表
 			await getAllFiles(curFolderPath, pageNum, pageSize)
 			setLoading(false)
 		}
 		return false
 	}
 
-	// 删除相册图片(批量)
 	const removeFiles = async () => {
-		const removePaths = Array.from(checkedPaths)
-		// 删除后的分页总数
-		const newTotalPages = Math.max(1, Math.ceil((pageTotal - removePaths.length) / pageSize))
-		// 计算删除后应该更新的pageNum值
-		const newPageNum = Math.min(pageNum, newTotalPages)
+		const paths = [...checkedPaths]
+		const page = Math.min(pageNum, Math.max(1, Math.ceil((pageTotal - paths.length) / pageSize)))
 		try {
 			setLoading(true)
-			const res = await deleteFiles(removePaths)
+			const res = await deleteFiles(paths)
 			if (res.success) {
-				message.success('删除成功')
+				notify.success('删除成功')
 				setCheckedPaths(new Set())
 			}
 		} catch {
 		} finally {
-			await getAllFiles(curFolderPath, newPageNum, pageSize)
+			setPageNum(page)
+			await getAllFiles(curFolderPath, page, pageSize)
 			setLoading(false)
 		}
+	}
+
+	const modifyFolderName = async () => {
+		try {
+			setLoading(true)
+			const newName = prompt('输入新名称')
+			if (newName === null) return
+			if (!newName.trim()) {
+				notify.warning('新名称不能为空')
+				return
+			}
+			const res = await renameFolder(curFolderPath, newName.trim())
+			if (res.success) {
+				notify.success('重命名成功')
+				await getAllFolders()
+				if (res.data?.folderPath) await selectFolder(res.data.folderPath)
+			}
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	const removeFolder = async () => {
+		try {
+			setLoading(true)
+			const res = await deleteFolder(curFolderPath)
+			if (res.success) {
+				notify.success('删除成功')
+				setCurFolderPath('')
+				setFiles([])
+				setPageTotal(0)
+				await getAllFolders()
+			}
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	const getInfoContent = useCallback(async () => {
+		try {
+			setLoading(true)
+			const res = await getInfo(curFolderPath)
+			if (res.success) {
+				const data = JSON.parse(res.data) || {}
+				form.setValues({
+					mode: data.mode || '',
+					hidden: data.hidden || false,
+					title: data.title || '',
+					description: data.description || '',
+					date: dayjs(data.date || formatTime(new Date())),
+					location: data.location || '',
+					tags: data.tags || [],
+					layout: data.layout || 'grid',
+					columns: data.columns || 3,
+					cover: data.cover || '',
+					photos: data.photos || [{ src: '', alt: '' }]
+				})
+				setIsDialogOpen(true)
+			}
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [curFolderPath, form])
+
+	const saveInfoContent = useCallback(async () => {
+		try {
+			setLoading(true)
+			const values = await form.validate()
+			const payload: AlbumInfo = {
+				...values,
+				date: values.date?.format('YYYY-MM-DD') || '',
+				photos: values.photos?.filter((photo: PhotoItem) => photo.src)
+			}
+			const res = await updateInfo(curFolderPath, JSON.stringify(payload, null, 2))
+			if (res.success) {
+				notify.success('保存成功')
+				setIsDialogOpen(false)
+			}
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [curFolderPath, form])
+	const throttledSave = useMemo(() => throttle(saveInfoContent, 2000, { immediate: true }), [saveInfoContent])
+
+	const onPageChange = async (page: number, size: number) => {
+		setPageNum(page)
+		setPageSize(size)
+		setCheckedPaths(new Set())
+		await getAllFiles(curFolderPath, page, size)
 	}
 
 	useEffect(() => {
 		getAllFolders()
 	}, [])
 
-	// 分页改变
-	const onPageChange = async (page: number, pageSize: number) => {
-		setPageNum(page)
-		setPageSize(pageSize)
-		setCheckedPaths(new Set())
-		await getAllFiles(curFolderPath, page, pageSize)
-	}
-
-	// 重命名文件夹
-	const modifyFolderName = useCallback(async () => {
-		try {
-			setLoading(true)
-			const newName = prompt('输入新名称')
-			if (newName === null) return
-			if (!newName?.trim()) {
-				message.warning('新名称不能为空')
-				return
-			}
-			const res = await renameFolder(curFolderPath, newName.trim())
-			if (res.success) {
-				message.success('重命名成功')
-				const { folderPath } = res.data || {}
-				await getAllFolders()
-				await selectFolder(folderPath)
-			}
-		} catch {
-		} finally {
-			setLoading(false)
-		}
-	}, [getAllFolders, selectFolder, curFolderPath])
-
-	// 删除文件夹
-	const removeFolder = useCallback(() => {
-		try {
-			setLoading(true)
-			Modal.confirm({
-				centered: true,
-				content: '确定要删除整个相册？注意此操作无法撤回！',
-				onOk: async () => {
-					const res = await deleteFolder(curFolderPath)
-					if (res.success) {
-						message.success('删除成功')
-						setCurFolderPath('')
-						await getAllFolders()
-					}
-				}
-			})
-		} catch {
-		} finally {
-			setLoading(false)
-		}
-	}, [getAllFolders, curFolderPath])
-
-	// 更多选项点击
-	const dropdownClick = useCallback(
-		(e: { key: string }) => {
-			const func: Record<string, Function> = {
-				rename: modifyFolderName,
-				delete: removeFolder
-			}
-			func[e.key]()
-		},
-		[modifyFolderName, removeFolder]
-	)
-
-	// 获取配置
-	const getInfoContent = useCallback(
-		async (options: { openModal: boolean } = { openModal: true }) => {
-			try {
-				setLoading(true)
-				const res = await getInfo(curFolderPath)
-				if (res.success) {
-					const data = JSON.parse(res.data) || {}
-					form.setFieldsValue({
-						mode: data.mode || '',
-						hidden: data.hidden || false,
-						title: data.title || '',
-						description: data.description || '',
-						date: dayjs(data.date || formatTime(new Date())),
-						location: data.location || '',
-						tags: data.tags || [],
-						layout: data.layout || 'grid',
-						columns: data.columns || 3,
-						// 外链模式
-						cover: data.cover || '',
-						photos: data.photos || [{ src: '', alt: '' }]
-					})
-					setIsModalOpen(options.openModal)
-				}
-			} catch {
-			} finally {
-				setLoading(false)
-			}
-		},
-		[curFolderPath]
-	)
-
-	// 保存配置
-	const _saveInfoContent = useCallback(async () => {
-		try {
-			setLoading(true)
-			const values = await form.validateFields()
-			const payload: AlbumInfo = {
-				...values,
-				date: values?.date?.format('YYYY-MM-DD') || '',
-				photos: values?.photos?.filter((p: PhotoItem) => p.src)
-			}
-			const res = await updateInfo(curFolderPath, JSON.stringify(payload, null, 2))
-			if (res.success) {
-				message.success('保存成功')
-				setIsModalOpen(false)
-			}
-		} catch {
-		} finally {
-			setLoading(false)
-		}
-	}, [getInfoContent, curFolderPath])
-	const throttledSave = useMemo(() => throttle(_saveInfoContent, 2000, { immediate: true }), [_saveInfoContent])
-
-	const menuItems = useMemo(() => {
-		return folders.map((folder) => ({
-			key: folder.folderPath,
-			icon: <FolderOutlined />,
-			label: folder.folderName,
-			extra: curFolderPath === folder.folderPath && (
-				<div onClick={(e) => e.stopPropagation()} className={styles['folder-dropdown']}>
-					<Dropdown menu={{ items: dropdownOpts, onClick: dropdownClick }} trigger={['click']}>
-						{<Button loading={loading} icon={<EllipsisOutlined />} type="text" />}
-					</Dropdown>
-				</div>
-			)
-		}))
-	}, [folders, curFolderPath, dropdownClick, loading])
-
-	// 文件夹列表
-	const FolderMenu: React.FC = () => (
-		<>
-			<div style={{ padding: '16px' }}>
-				<Button loading={loading} type="dashed" block icon={<PlusOutlined />} onClick={addFolder}>
-					新建目录
-				</Button>
+	const renderFolderList = () => (
+		<div className="flex h-full min-h-0 flex-col">
+			<div className="border-b p-3">
+				<Button variant="outline" block className="border-dashed" icon={<FolderPlus className="size-4" />} loading={loading} onClick={addFolder}>新建目录</Button>
 			</div>
-			<Menu
-				mode="inline"
-				selectedKeys={[curFolderPath]}
-				onClick={({ key }) => selectFolder(key)}
-				items={menuItems}
-				style={{ maxHeight: 'calc(100vh - 64px)', overflowY: 'auto', userSelect: 'none' }}
-			/>
-		</>
+			<nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2" aria-label="相册目录">
+				{folders.map((folder) => (
+					<button
+						key={folder.folderPath}
+						type="button"
+						className={cn('flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm transition-colors hover:bg-accent', curFolderPath === folder.folderPath && 'bg-primary/10 font-medium text-primary')}
+						onClick={() => selectFolder(folder.folderPath)}
+					>
+						<Folder className="size-4 shrink-0" />
+						<span className="truncate">{folder.folderName}</span>
+					</button>
+				))}
+				{!folders.length && <p className="px-3 py-8 text-center text-xs text-muted-foreground">暂无相册目录</p>}
+			</nav>
+		</div>
 	)
 
 	return (
-		<Layout className={styles['layout-container']}>
-			{/* PC侧边栏 */}
-			{screens.lg ? (
-				<Sider width={280} theme="light" className={styles.sider}>
-					{<FolderMenu />}
-				</Sider>
-			) : (
-				/* 移动端 */
-				<Drawer
-					title="目录列表"
-					placement="left"
-					onClose={() => setDrawerVisible(false)}
-					open={drawerVisible}
-					size="80%"
-					classNames={{ body: styles.drawerBody }}
-				>
-					<FolderMenu />
-				</Drawer>
-			)}
-
-			<Content className={styles.content}>
-				<Spin spinning={loading}>
-					{/* 顶部标题与操作栏 */}
-					<div className={styles.toolbar}>
-						<div>
-							{!screens.lg && (
-								<Button
-									loading={loading}
-									className={styles['toolbar-directory']}
-									icon={<FolderOpenOutlined />}
-									onClick={() => setDrawerVisible(true)}
+		<Page className="max-w-none">
+			<PageHeader
+				eyebrow="Gallery"
+				title={currentFolder?.folderName || '相册管理'}
+				description={currentFolder ? '管理当前相册中的图片与展示配置。' : '选择或创建相册目录后开始管理图片。'}
+				actions={
+					<>
+						<Button className="lg:hidden" icon={<FolderOpen className="size-4" />} onClick={() => setSheetOpen(true)}>目录</Button>
+						{curFolderPath && (
+							<>
+								<Button icon={<Pencil className="size-4" />} disabled={loading} onClick={modifyFolderName}>重命名</Button>
+								<ConfirmDialog
+									trigger={<Button variant="destructive" icon={<Trash2 className="size-4" />} disabled={loading}>删除相册</Button>}
+									title="删除整个相册？"
+									description="目录、图片和配置都会被删除，此操作无法撤回。"
+									confirmLabel="删除相册"
+									variant="destructive"
+									onConfirm={removeFolder}
 								/>
-							)}
-							<Typography.Title level={4}>
-								{folders.find((folder) => folder.folderPath === curFolderPath)?.folderName || '选择相册目录'}
-							</Typography.Title>
-							{curFolderPath && (
-								<Alert
-									className={styles.alert}
-									title={
-										<>
-											本地模式下相册内必须存在一个名为
-											<span className={styles.coverCopyText} onClick={() => copy('cover.jpg')}>
-												cover.jpg
-											</span>
-											的图片作为封面。
-										</>
-									}
-									type="info"
-									showIcon
-									closable
+								<Button icon={<Settings2 className="size-4" />} loading={loading} onClick={getInfoContent}>配置</Button>
+								<Upload beforeUpload={uploadFiles} multiple accept={imageAccept} disabled={loading}>
+									<Button variant="default" icon={<FileUp className="size-4" />} loading={loading}>上传图片</Button>
+								</Upload>
+							</>
+						)}
+					</>
+				}
+			/>
+
+			<div className="grid min-h-[calc(100vh-12rem)] gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+				<aside className="hidden overflow-hidden rounded-xl border bg-card shadow-sm lg:block">{renderFolderList()}</aside>
+				<section className="min-w-0 space-y-4">
+					{curFolderPath && (
+						<div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+							<FileImage className="mt-0.5 size-4 shrink-0" />
+							<p>本地模式下相册内必须存在一个名为 <button type="button" className="font-mono font-semibold underline" onClick={() => copy('cover.jpg')}>cover.jpg</button> 的封面图片。</p>
+						</div>
+					)}
+
+					{curFolderPath && files.length > 0 && (
+						<div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3 shadow-sm">
+							<Checkbox
+								checked={checkedPaths.size === files.length}
+								indeterminate={checkedPaths.size > 0 && checkedPaths.size < files.length}
+								onCheckedChange={(checked) => setCheckedPaths(checked ? new Set(files.map((file) => file.filePath)) : new Set())}
+							>
+								全选
+							</Checkbox>
+							{checkedPaths.size > 0 && (
+								<ConfirmDialog
+									trigger={<Button variant="destructive" size="small" icon={<Trash2 className="size-4" />} loading={loading}>删除 {checkedPaths.size} 项</Button>}
+									title="删除选中的图片？"
+									description="所选图片将从相册目录中永久删除。"
+									confirmLabel="删除"
+									variant="destructive"
+									onConfirm={removeFiles}
 								/>
 							)}
 						</div>
-						{curFolderPath && (
-							<Space>
-								{files.length > 0 ? (
-									<Checkbox
-										className={styles.checkbox}
-										onChange={onCheckAllChange}
-										indeterminate={checkedPaths.size > 0 && checkedPaths.size < files.length}
-										checked={checkedPaths.size === files.length}
+					)}
+
+					{loading && curFolderPath && !files.length ? (
+						<PageLoading label="正在加载相册图片..." />
+					) : curFolderPath && files.length ? (
+						<div className={cn('grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
+							{files.map((file) => {
+								const selected = checkedPaths.has(file.filePath)
+								const publicPath = toPublicPath(file.filePath)
+								return (
+									<article
+										key={file.filePath}
+										className={cn('group cursor-pointer overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md', selected && 'border-primary ring-2 ring-primary/15')}
+										role="button"
+										tabIndex={0}
+										onClick={() => toggleFile(file.filePath)}
+										onKeyDown={(event) => {
+											if (event.key === 'Enter' || event.key === ' ') toggleFile(file.filePath)
+										}}
 									>
-										全选
-									</Checkbox>
-								) : null}
-								{checkedPaths.size > 0 ? (
-									<Popconfirm title="确定删除?" okText="确定" cancelText="取消" onConfirm={removeFiles} placement="bottom">
-										<Button loading={loading} icon={<DeleteOutlined />}>
-											删除
-										</Button>
-									</Popconfirm>
-								) : null}
-								<Button loading={loading} icon={<EditOutlined />} onClick={() => getInfoContent()}>
-									配置
-								</Button>
-								<Upload showUploadList={false} beforeUpload={uploadFiles} multiple accept={imageAccept}>
-									<Button loading={loading} type="primary" icon={<UploadOutlined />}>
-										上传
-									</Button>
-								</Upload>
-							</Space>
-						)}
+										<div className="relative aspect-square overflow-hidden bg-muted" onClick={(event) => event.stopPropagation()}>
+											<Image src={file.url} alt={file.filename} className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+											{file.filename === 'cover.jpg' && <span className="absolute left-2 top-2 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground">封面</span>}
+											<Checkbox className="absolute right-2 top-2 rounded bg-background/85 p-1" checked={selected} onCheckedChange={(checked) => setFileChecked(file.filePath, checked)} />
+										</div>
+										<div className="p-3">
+											<h2 className="truncate text-sm font-medium" title={file.filename}>{file.filename}</h2>
+											<button type="button" className="mt-1 flex max-w-full items-center gap-1 text-left text-xs text-muted-foreground hover:text-primary" title={publicPath} onClick={(event) => { event.stopPropagation(); copy(publicPath) }}>
+												<Copy className="size-3 shrink-0" /><span className="truncate">{publicPath}</span>
+											</button>
+										</div>
+									</article>
+								)
+							})}
+						</div>
+					) : (
+						<div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
+							{curFolderPath ? <FileImage className="size-10 opacity-40" /> : <FolderOpen className="size-10 opacity-40" />}
+							<p>{curFolderPath ? '当前相册还没有图片' : '先选择相册目录'}</p>
+						</div>
+					)}
+
+					{curFolderPath && pageTotal > 0 && (
+						<Pagination
+							current={pageNum}
+							pageSize={pageSize}
+							total={pageTotal}
+							pageSizeOptions={[12, 24, 48, 96]}
+							showQuickJumper
+							showSizeChanger
+							onChange={onPageChange}
+						/>
+					)}
+				</section>
+			</div>
+
+			<Sheet title="相册目录" side="left" width={288} open={sheetOpen} onClose={() => setSheetOpen(false)} bodyClassName="p-0">
+				{renderFolderList()}
+			</Sheet>
+
+			<Dialog
+				title="编辑相册配置"
+				open={isDialogOpen}
+				onSubmit={throttledSave}
+				onCancel={() => setIsDialogOpen(false)}
+				width={currentMode === 'external' ? 800 : 640}
+				confirmLabel="保存"
+				closeOnOutside={false}
+			>
+				<Form form={form}>
+					<div className="grid gap-x-4 md:grid-cols-12">
+						<FormField name="mode" label="模式" className="md:col-span-4"><Select options={[{ value: '', label: '本地模式' }, { value: 'external', label: '外链模式' }]} /></FormField>
+						<FormField name="hidden" label="隐藏相册" valueKey="checked" className="md:col-span-3"><Switch checkedChildren="隐藏" unCheckedChildren="显示" /></FormField>
+						<FormField name="title" label="相册标题" className="md:col-span-5"><Input placeholder="输入相册标题" /></FormField>
+					</div>
+					<FormField name="description" label="相册描述"><Textarea placeholder="输入相册描述" rows={3} showCount /></FormField>
+					<div className="grid gap-x-4 md:grid-cols-2">
+						<FormField name="date" label="创建日期"><DatePicker /></FormField>
+						<FormField name="location" label="拍摄地点"><Input placeholder="输入拍摄地点" /></FormField>
+						<FormField name="tags" label="标签"><Select mode="tags" placeholder="输入标签" tokenSeparators={[',', ';', '，', '；']} /></FormField>
+						<div className="grid grid-cols-2 gap-x-4">
+							<FormField name="layout" label="布局方式"><Select options={[{ value: 'grid', label: '网格布局' }, { value: 'masonry', label: '瀑布流布局' }]} /></FormField>
+							<FormField name="columns" label="列数"><Select options={[1, 2, 3, 4].map((value) => ({ value, label: `${value} 列` }))} /></FormField>
+						</div>
 					</div>
 
-					{/* 文件列表 */}
-					{curFolderPath && files.length > 0 ? (
-						<Row gutter={[4, 4]} className={styles.fileListRow}>
-							{files.map((file, index) => (
-								<Col key={index} xs={12} sm={8} md={12} lg={6}>
-									<Card
-										className={styles.card}
-										hoverable
-										size="small"
-										cover={
-											<div className={styles.cover} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-												{file.url && (
-													<Image loading="lazy" width="100%" height="100%" className={styles.coverImage} alt={file.filename} src={file.url} />
-												)}
-											</div>
-										}
-										actions={[<Checkbox checked={checkedPaths.has(file.filePath)} onChange={(e) => onCheckChange(e, file.filePath)} />]}
-										onClick={() => toggleCheck(file.filePath)}
-									>
-										{(() => {
-											const relativePath = file.filePath.replace(/\\/g, '/').split(/^.*?\/public/, 2)[1]
-											const filePath = relativePath || file.filePath.replace(/\\/g, '/')
-											return (
-												<Card.Meta
-													title={
-														<Typography.Text className={styles.filenameText} ellipsis={{ tooltip: file.filename }}>
-															<span className={styles.coverBadge}>{file.filename === 'cover.jpg' ? '[封面]' : ''}</span> {file.filename}
-														</Typography.Text>
-													}
-													description={
-														<Typography.Text
-															type="secondary"
-															ellipsis={{ tooltip: filePath, suffix: ' [点击复制]' }}
-															onClick={(e) => {
-																e.stopPropagation()
-																copy(filePath)
-															}}
-														>
-															{filePath}
-														</Typography.Text>
-													}
-												/>
-											)
-										})()}
-									</Card>
-								</Col>
-							))}
-						</Row>
-					) : (
-						<Empty className={styles.empty} description={curFolderPath ? '空空如也~' : '先选择相册目录'} />
-					)}
-					{curFolderPath && pageTotal > 0 && (
-						<Row>
-							<Pagination
-								size="small"
-								showQuickJumper
-								showSizeChanger
-								current={pageNum}
-								pageSize={pageSize}
-								total={pageTotal}
-								onChange={onPageChange}
-								pageSizeOptions={[12, 24, 48, 96]}
-								className={styles.pagination}
-							/>
-						</Row>
-					)}
-				</Spin>
-			</Content>
-
-			{/* 配置编辑窗口 */}
-			<Modal
-				title="编辑相册配置"
-				open={isModalOpen}
-				mask={{ closable: false }}
-				onOk={throttledSave}
-				onCancel={() => setIsModalOpen(false)}
-				width={screens.md ? (currentMode === 'external' ? 800 : 600) : '95%'}
-				okText="保存"
-				cancelText="取消"
-				centered
-				destroyOnHidden
-				forceRender
-			>
-				<Form form={form} layout="vertical">
-					<Row gutter={[8, 0]} className={styles.modalFormRow}>
-						<Col xs={12} md={5}>
-							<Form.Item className={styles.formItem} label="模式" name="mode">
-								<Select
-									options={[
-										{ value: '', label: '本地模式' },
-										{ value: 'external', label: '外链模式' }
-									]}
-								/>
-							</Form.Item>
-						</Col>
-
-						<Col xs={12} md={4}>
-							<Form.Item className={styles.formItem} label="隐藏相册" name="hidden" valuePropName="checked">
-								<Switch checkedChildren="隐藏" unCheckedChildren="显示" />
-							</Form.Item>
-						</Col>
-
-						<Col xs={24} md={15}>
-							<Form.Item className={styles.formItem} label="相册标题" name="title">
-								<Input placeholder="输入相册标题" />
-							</Form.Item>
-						</Col>
-
-						<Col xs={24}>
-							<Form.Item className={styles.formItem} label="相册描述" name="description">
-								<Input.TextArea placeholder="输入相册描述" rows={3} showCount />
-							</Form.Item>
-						</Col>
-
-						<Col xs={12} md={currentMode === 'external' ? 5 : 12}>
-							<Form.Item className={styles.formItem} label="创建日期" name="date">
-								<DatePicker placeholder="选择创建日期" className={styles.fullWidth} format="YYYY-MM-DD" />
-							</Form.Item>
-						</Col>
-						<Col xs={12} md={currentMode === 'external' ? 7 : 12}>
-							<Form.Item className={styles.formItem} label="拍摄地点" name="location">
-								<Input placeholder="输入拍摄地点" />
-							</Form.Item>
-						</Col>
-
-						<Col xs={24} md={currentMode === 'external' ? 12 : 24}>
-							<Form.Item className={styles.formItem} label="标签" name="tags">
-								<Select mode="tags" placeholder="输入标签" tokenSeparators={[',', ';', '，', '；']} />
-							</Form.Item>
-						</Col>
-
-						<Col xs={12} md={currentMode === 'external' ? 5 : 12}>
-							<Form.Item className={styles.formItem} label="布局方式" name="layout">
-								<Select
-									options={[
-										{ value: 'grid', label: '网格布局' },
-										{ value: 'masonry', label: '瀑布流布局' }
-									]}
-								/>
-							</Form.Item>
-						</Col>
-						<Col xs={12} md={currentMode === 'external' ? 7 : 12}>
-							<Form.Item className={styles.formItem} label="列数" name="columns">
-								<Select
-									options={[
-										{ value: 1, label: '1列' },
-										{ value: 2, label: '2列' },
-										{ value: 3, label: '3列' },
-										{ value: 4, label: '4列' }
-									]}
-								/>
-							</Form.Item>
-						</Col>
-						{currentMode === 'external' && (
-							<>
-								<Col xs={24} md={12}>
-									<Form.Item className={styles.formItem} label="封面图片链接" name="cover" rules={[{ required: true }]}>
-										<Input placeholder="输入封面图片URL" />
-									</Form.Item>
-								</Col>
-
-								<Col xs={24}>
-									<Form.List name="photos">
-										{(fields, { add, remove }) => (
-											<>
-												<div className={styles.photosHeader}>
-													<span className={styles.photosTitle}>相册图片列表</span>
-													<Button loading={loading} type="dashed" onClick={() => add({ src: '', alt: '' })} icon={<PlusOutlined />}>
-														添加图片
-													</Button>
-												</div>
-
-												<div className={styles.photosList}>
-													{fields.map(({ key, name, ...restField }, index) => (
-														<div key={key} className={styles.photoItem}>
-															<div className={styles.photoItemHeader}>
-																<span className={styles.photoItemTitle}>图片 {index + 1}</span>
-																{fields.length > 1 && <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />}
+					{currentMode === 'external' && (
+						<>
+							<FormField name="cover" label="封面图片链接" rules={[{ required: true }]}><Input placeholder="输入封面图片 URL" /></FormField>
+							<div className="mb-3 flex items-center justify-between gap-3">
+								<div className="text-sm font-medium">相册图片列表</div>
+							</div>
+							<FormList name="photos">
+								{(fields, { add, remove }) => (
+									<div className="space-y-3">
+										{fields.map(({ key, name }, index) => (
+											<FormField key={key} unstyled observe>
+												{({ getValue }) => {
+													const src = getValue(['photos', name, 'src'])
+													const alt = getValue(['photos', name, 'alt'])
+													return (
+														<div className="rounded-xl border bg-muted/20 p-4">
+															<div className="mb-3 flex items-center justify-between"><span className="text-sm font-medium">图片 {index + 1}</span>{fields.length > 1 && <Button variant="ghost" className="size-8 px-0 text-destructive hover:bg-destructive/10" aria-label="删除图片" onClick={() => remove(name)}><Trash2 className="size-4" /></Button>}</div>
+															<div className={cn('grid gap-3', src && 'sm:grid-cols-[1fr_9rem]')}>
+																<div>
+																	<FormField name={[name, 'src']} label="图片链接" rules={[{ required: index > 0 }]}><Input placeholder="输入图片 URL" /></FormField>
+																	<FormField name={[name, 'alt']} label="图片描述" className="mb-0"><Input placeholder="输入图片描述" /></FormField>
+																</div>
+																{src && <Image src={src} alt={alt || '图片预览'} className="h-32 w-full rounded-lg border object-cover" />}
 															</div>
-
-															<Row gutter={[12, 0]}>
-																<Form.Item noStyle shouldUpdate>
-																	{({ getFieldValue }) => {
-																		const src = getFieldValue(['photos', name, 'src'])
-																		const alt = getFieldValue(['photos', name, 'alt'])
-																		return (
-																			<>
-																				<Col xs={src ? 16 : 24}>
-																					<Row gutter={[0, 12]}>
-																						<Col xs={24}>
-																							<Form.Item
-																								{...restField}
-																								name={[name, 'src']}
-																								label="图片链接"
-																								className={styles.photoFormItem}
-																								rules={[{ required: index > 0 }]}
-																							>
-																								<Input placeholder="输入图片URL" />
-																							</Form.Item>
-																						</Col>
-																						<Col xs={24}>
-																							<Form.Item {...restField} name={[name, 'alt']} label="图片描述" className={styles.photoFormItem}>
-																								<Input placeholder="输入图片描述" />
-																							</Form.Item>
-																						</Col>
-																					</Row>
-																				</Col>
-																				{src && (
-																					<Col xs={8}>
-																						<Image loading="lazy" height="100%" width="100%" className={styles.photoPreview} alt={alt} src={src} />
-																					</Col>
-																				)}
-																			</>
-																		)
-																	}}
-																</Form.Item>
-															</Row>
 														</div>
-													))}
-												</div>
-											</>
-										)}
-									</Form.List>
-								</Col>
-							</>
-						)}
-					</Row>
+													)
+												}}
+											</FormField>
+										))}
+										<Button variant="outline" block className="border-dashed" onClick={() => add({ src: '', alt: '' })}>添加图片</Button>
+									</div>
+								)}
+							</FormList>
+						</>
+					)}
 				</Form>
-			</Modal>
-		</Layout>
+			</Dialog>
+		</Page>
 	)
 }

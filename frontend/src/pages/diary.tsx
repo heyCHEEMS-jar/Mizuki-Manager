@@ -1,39 +1,15 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import {
-	Card,
-	Row,
-	Col,
-	Tag,
-	Button,
-	Modal,
-	Form,
-	Input,
-	message,
-	Upload,
-	Image,
-	Space,
-	Typography,
-	Spin,
-	Grid,
-	Layout,
-	Empty,
-	Pagination,
-	Checkbox,
-	CheckboxProps,
-	Popconfirm,
-	CheckboxChangeEvent,
-	DatePicker,
-	Select
-} from 'antd'
-import { EditOutlined, UploadOutlined, DeleteOutlined, BookOutlined, EnvironmentOutlined, SmileOutlined } from '@ant-design/icons'
-import { getDiaryConfig, writeDiaryConfig, uploadDiaryImages } from '../services/diary'
-import { throttle } from '../utils/util'
-import styles from '../styles/pages/diary.module.scss'
-import { Content } from 'antd/es/layout/layout'
-import { imageAccept } from '../configs/upload-config'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import dayjs from 'dayjs'
-
-const { useBreakpoint } = Grid
+import { BookOpen, FileUp, MapPin, Pencil, Smile, X } from 'lucide-react'
+import { CollectionControls } from '../components/CollectionControls'
+import { Page, PageHeader, PageLoading } from '../components/Page'
+import { Button, Checkbox, DatePicker, Form, FormField, Image, Input, Dialog, Pagination, Select, Textarea, Upload, useForm, useFormWatch } from '../components/ui'
+import { imageAccept } from '../configs/upload-config'
+import { usePagedCollection } from '../hooks/usePagedCollection'
+import { notify } from '../lib/notify'
+import { getDiaryConfig, uploadDiaryImages, writeDiaryConfig } from '../services/diary'
+import { cn } from '../lib/utils'
+import { throttle } from '../utils/util'
 
 interface DiaryItem {
 	id: number
@@ -46,54 +22,20 @@ interface DiaryItem {
 }
 
 export default function Diary() {
-	const screens = useBreakpoint()
-	const [form] = Form.useForm()
+	const form = useForm()
 	const [loading, setLoading] = useState(false)
-	const [diaryList, setDiaryList] = useState<DiaryItem[]>([])
-	const [isModalOpen, setIsModalOpen] = useState(false)
+	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [editingIndex, setEditingIndex] = useState<number>()
-	const [pageList, setPageList] = useState<DiaryItem[]>([])
-	const [pageNum, setPageNum] = useState(1)
-	const [pageSize, setPageSize] = useState(12)
-	const [checkedIdxes, setCheckedIdxes] = useState<Set<number>>(new Set())
+	const collection = usePagedCollection<DiaryItem>()
+	const imagesValue = useFormWatch('images', form) || []
 
-	const imagesValue = Form.useWatch('images', form)
-
-	const onCheckAllChange: CheckboxProps['onChange'] = (e) => {
-		setCheckedIdxes(e.target.checked ? new Set(pageList.map((_, index) => index)) : new Set())
-	}
-
-	const _handleCheck = (needCheck: boolean, index: number) => {
-		setCheckedIdxes((prev) => {
-			const next = new Set(prev)
-			if (needCheck) next.add(index)
-			else next.delete(index)
-			return next
-		})
-	}
-
-	const onCheckChange = (e: CheckboxChangeEvent, index: number) => {
-		e.stopPropagation()
-		_handleCheck(e?.target?.checked, index)
-	}
-
-	const onPageChange = async (page: number, size: number) => {
-		setCheckedIdxes(new Set())
-		setPageNum(page)
-		setPageSize(size)
-		setPageList(diaryList.slice((page - 1) * size, page * size) || [])
-	}
-
-	const getConfig = useCallback(async (num: number, size: number) => {
+	const getConfig = useCallback(async (page: number, pageSize: number) => {
 		try {
 			setLoading(true)
 			const res = await getDiaryConfig()
 			if (res.success) {
-				const data: DiaryItem[] = res.data?.diaryData || []
-				// 按日期最新倒序排列
-				const sortedData = data.sort((a, b) => dayjs(b.date).unix() - dayjs(a.date).unix())
-				setDiaryList(sortedData)
-				setPageList(sortedData.slice((num - 1) * size, num * size) || [])
+				const items = [...(res.data?.diaryData || [])].sort((a, b) => dayjs(b.date).unix() - dayjs(a.date).unix())
+				collection.setItems(items, page, pageSize)
 			}
 		} catch {
 		} finally {
@@ -101,88 +43,73 @@ export default function Diary() {
 		}
 	}, [])
 
-	const openEditModal = (e: React.MouseEvent | undefined, index: number) => {
-		e?.stopPropagation()
+	const openEditDialog = (event: MouseEvent | undefined, index: number) => {
+		event?.stopPropagation()
 		setEditingIndex(index)
-		form.resetFields()
-		if (index !== -1) {
-			// 修改
-			const item = pageList[index]
-			form.setFieldsValue({ ...item, date: dayjs(item.date) })
-		} else {
-			// 新增
-			form.setFieldsValue({ date: dayjs(), id: Date.now() })
+		form.reset()
+		if (index === -1) form.setValues({ date: dayjs(), id: Date.now(), images: [] })
+		else {
+			const item = collection.pageItems[index]
+			form.setValues({ ...item, date: dayjs(item.date), images: item.images || [] })
 		}
-		setIsModalOpen(true)
+		setIsDialogOpen(true)
 	}
 
-	const updateList = useCallback(
-		async (newList: DiaryItem[], successMsg: string, num: number, size: number) => {
-			try {
-				setLoading(true)
-				const res = await writeDiaryConfig({ diaryData: newList })
-				if (res.success) {
-					message.success(successMsg)
-					setIsModalOpen(false)
-					setCheckedIdxes(new Set())
-					await getConfig(num, size)
-				}
-			} catch {
-			} finally {
-				setLoading(false)
+	const updateList = useCallback(async (items: DiaryItem[], successMessage: string, page: number, pageSize: number) => {
+		try {
+			setLoading(true)
+			const res = await writeDiaryConfig({ diaryData: items })
+			if (res.success) {
+				notify.success(successMessage)
+				setIsDialogOpen(false)
+				await getConfig(page, pageSize)
 			}
-		},
-		[getConfig]
-	)
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [getConfig])
 
-	const _handleSave = useCallback(async () => {
+	const handleSave = useCallback(async () => {
 		if (editingIndex === undefined) return
 		try {
-			const values = await form.validateFields()
-			const formattedValues = {
-				...values,
-				date: values.date.toISOString()
-			}
-			const newList = [...diaryList]
+			const values = await form.validate()
+			const item = { ...values, date: values.date.toISOString() }
+			const items = [...collection.items]
 			if (editingIndex !== -1) {
-				const realIndex = diaryList.findIndex((item) => item.id === pageList[editingIndex].id)
-				if (realIndex !== -1) newList.splice(realIndex, 1)
+				const realIndex = items.findIndex((entry) => entry.id === collection.pageItems[editingIndex].id)
+				if (realIndex !== -1) items.splice(realIndex, 1)
 			}
-			newList.unshift(formattedValues)
-			await updateList(newList, editingIndex === -1 ? '记录成功' : '修改成功', pageNum, pageSize)
+			items.unshift(item)
+			await updateList(items, editingIndex === -1 ? '记录成功' : '修改成功', collection.page, collection.pageSize)
 		} catch (err) {
 			console.error(err)
 		}
-	}, [updateList, diaryList, editingIndex, form, pageList, pageNum, pageSize])
-	const throttledSave = useMemo(() => throttle(_handleSave, 2000, { immediate: true }), [_handleSave])
+	}, [collection.items, collection.page, collection.pageItems, collection.pageSize, editingIndex, form, updateList])
+	const throttledSave = useMemo(() => throttle(handleSave, 2000, { immediate: true }), [handleSave])
 
 	const handleUpload = async (file: File, fileList: File[]) => {
-		if (file === fileList[fileList.length - 1]) {
-			try {
-				setLoading(true)
-				const res = await uploadDiaryImages(fileList)
-				if (res.success) {
-					const newUrls = res.data?.map((item: any) => item.publicPath) || []
-					const curImages = form.getFieldValue('images') || []
-					form.setFieldsValue({ images: [...curImages, ...newUrls] })
-					message.success('上传成功')
-				}
-			} catch {
-			} finally {
-				setLoading(false)
-				return false
+		if (file !== fileList[fileList.length - 1]) return false
+		try {
+			setLoading(true)
+			const res = await uploadDiaryImages(fileList)
+			if (res.success) {
+				const newImages = res.data?.map((item: any) => item.publicPath) || []
+				form.setValues({ images: [...imagesValue, ...newImages] })
+				notify.success('上传成功')
 			}
+		} catch {
+		} finally {
+			setLoading(false)
 		}
+		return false
 	}
 
 	const removeDiary = async () => {
-		const removeIds = new Set(pageList.filter((_, index) => checkedIdxes.has(index)).map((i) => i.id))
-		const newList = diaryList.filter((item) => !removeIds.has(item.id))
-		// 删除后的分页总数
-		const newTotalPages = Math.max(1, Math.ceil(newList.length / pageSize))
-		// 计算删除后应该更新的pageNum值
-		const newPageNum = Math.min(pageNum, newTotalPages)
-		await updateList(newList, '删除成功', newPageNum, pageSize)
+		const removeIds = new Set(collection.selectedItems.map((item) => item.id))
+		const items = collection.items.filter((item) => !removeIds.has(item.id))
+		const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
+		await updateList(items, '删除成功', page, collection.pageSize)
 	}
 
 	useEffect(() => {
@@ -190,188 +117,125 @@ export default function Diary() {
 	}, [])
 
 	return (
-		<Layout className={styles['layout-container']}>
-			<Content className={styles.content}>
-				<Spin spinning={loading}>
-					<div className={styles.toolbar}>
-						<div className={styles.toolbarTitle}>
-							<Typography.Title level={4} className={styles.pageTitle}>
-								<BookOutlined /> 日记管理
-							</Typography.Title>
-							<Typography.Text type="secondary">记录生活中的每一个瞬间</Typography.Text>
+		<Page>
+			<PageHeader eyebrow="Journal" title="日记管理" description="记录生活片段、心情、地点和影像。" />
+			<CollectionControls
+				itemCount={collection.pageItems.length}
+				selectedCount={collection.selected.size}
+				allSelected={collection.allSelected}
+				partiallySelected={collection.partiallySelected}
+				loading={loading}
+				addLabel="写日记"
+				deleteTitle="删除选中的日记？"
+				deleteDescription="所选记录将从日记配置中移除。"
+				onSelectAll={collection.selectAll}
+				onDelete={removeDiary}
+				onAdd={() => openEditDialog(undefined, -1)}
+			/>
+
+			{loading && !collection.pageItems.length ? (
+				<PageLoading label="正在加载日记..." />
+			) : collection.pageItems.length ? (
+				<div className={cn('grid gap-4 sm:grid-cols-2 xl:grid-cols-3', loading && 'pointer-events-none opacity-60')}>
+					{collection.pageItems.map((item, index) => {
+						const selected = collection.selected.has(index)
+						return (
+							<article
+								key={item.id}
+								className={cn('relative flex min-h-72 cursor-pointer flex-col rounded-xl border bg-card p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md', selected && 'border-primary ring-2 ring-primary/15')}
+								role="button"
+								tabIndex={0}
+								onClick={() => collection.toggleItem(index)}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter' || event.key === ' ') collection.toggleItem(index)
+								}}
+							>
+								<div className="flex items-center justify-between gap-3 pr-8">
+									<time className="text-xs font-medium text-muted-foreground">{dayjs(item.date).format('YYYY-MM-DD HH:mm')}</time>
+									<Checkbox className="absolute right-4 top-4" checked={selected} onCheckedChange={(checked) => collection.setItemSelected(index, checked)} />
+								</div>
+								<p className="mt-4 line-clamp-5 flex-1 whitespace-pre-wrap text-sm leading-6">{item.content}</p>
+								{item.images?.length ? (
+									<div className="mt-4 flex gap-2 overflow-hidden" onClick={(event) => event.stopPropagation()}>
+										{item.images.slice(0, 4).map((image, imageIndex) => <Image key={`${image}-${imageIndex}`} src={image} alt="日记图片" className="size-14 rounded-md object-cover" />)}
+									</div>
+								) : null}
+								<div className="mt-4 flex flex-wrap items-center gap-1.5 border-t pt-3 text-xs">
+									{item.mood && <span className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 text-orange-700"><Smile className="size-3" />{item.mood}</span>}
+									{item.location && <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-blue-700"><MapPin className="size-3" />{item.location}</span>}
+									{item.tags?.map((tag) => <span key={tag} className="rounded-md bg-muted px-2 py-1 text-muted-foreground">#{tag}</span>)}
+								</div>
+								<Button variant="ghost" size="small" className="absolute bottom-3 right-3 size-8 px-0" aria-label="编辑日记" onClick={(event) => openEditDialog(event, index)}><Pencil className="size-4" /></Button>
+							</article>
+						)
+					})}
+				</div>
+			) : (
+				<div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
+					<BookOpen className="size-10 opacity-40" />
+					<p>目前还没有记录</p>
+				</div>
+			)}
+
+			{collection.items.length > 0 && (
+				<Pagination
+					current={collection.page}
+					pageSize={collection.pageSize}
+					total={collection.items.length}
+					pageSizeOptions={[12, 24, 48, 96]}
+					showQuickJumper
+					showSizeChanger
+					onChange={collection.changePage}
+				/>
+			)}
+
+			<Dialog
+				title={editingIndex === -1 ? '添加日记' : '修改日记'}
+				open={isDialogOpen}
+				onSubmit={throttledSave}
+				onCancel={() => setIsDialogOpen(false)}
+				width={640}
+				confirmLabel="保存"
+				closeOnOutside={false}
+			>
+				<Form form={form}>
+					<div className="grid gap-x-4 md:grid-cols-2">
+						<FormField name="date" label="时间" rules={[{ required: true }]}>
+							<DatePicker showTime />
+						</FormField>
+						<FormField name="mood" label="心情">
+							<Input prefix={<Smile className="size-4" />} placeholder="现在的状态" />
+						</FormField>
+					</div>
+					<FormField name="content" label="正文" rules={[{ required: true }]}>
+						<Textarea placeholder="此刻在想什么..." rows={8} />
+					</FormField>
+					<div className="mb-4">
+						<div className="mb-2 text-sm font-medium">图片</div>
+						<div className="flex flex-wrap items-center gap-2">
+							<Upload beforeUpload={handleUpload} accept={imageAccept} multiple disabled={loading}>
+								<Button icon={<FileUp className="size-4" />} loading={loading}>上传图片</Button>
+							</Upload>
+							{imagesValue.map((url: string, index: number) => (
+								<div key={`${url}-${index}`} className="relative">
+									<Image src={url} alt="日记图片预览" className="size-16 rounded-md border object-cover" />
+									<button type="button" className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-destructive text-white shadow" aria-label="移除图片" onClick={() => form.setValues({ images: imagesValue.filter((_: string, itemIndex: number) => itemIndex !== index) })}>
+										<X className="size-3" />
+									</button>
+								</div>
+							))}
 						</div>
 					</div>
-
-					<Space>
-						{pageList.length > 0 && (
-							<Checkbox
-								onChange={onCheckAllChange}
-								indeterminate={checkedIdxes.size > 0 && checkedIdxes.size < pageList.length}
-								checked={checkedIdxes.size === pageList.length}
-							>
-								全选
-							</Checkbox>
-						)}
-						{checkedIdxes.size > 0 && (
-							<Popconfirm title="确定删除选中的日记吗?" onConfirm={removeDiary} okText="确定" cancelText="取消">
-								<Button loading={loading} icon={<DeleteOutlined />}>
-									删除
-								</Button>
-							</Popconfirm>
-						)}
-						<Button icon={<EditOutlined />} onClick={() => openEditModal(undefined, -1)}>
-							写日记
-						</Button>
-					</Space>
-
-					{pageList.length > 0 ? (
-						<Row gutter={[8, 8]} className={styles.diaryListRow}>
-							{pageList.map((item, index) => (
-								<Col key={item.id} xs={24} sm={12} md={12} lg={8}>
-									<Card
-										className={styles.card}
-										hoverable
-										size="small"
-										onClick={() => _handleCheck(!checkedIdxes.has(index), index)}
-										actions={[<EditOutlined key="edit" onClick={(e) => openEditModal(e, index)} />]}
-									>
-										<div className={styles.cardContent}>
-											<Checkbox className={styles.cardCheckbox} checked={checkedIdxes.has(index)} onChange={(e) => onCheckChange(e, index)} />
-											<Typography.Text type="secondary" className={styles.diaryDate}>
-												{dayjs(item.date).format('YYYY-MM-DD HH:mm')}
-											</Typography.Text>
-											<Typography.Paragraph ellipsis={{ rows: 5 }} className={styles.diaryContent}>
-												{item.content}
-											</Typography.Paragraph>
-
-											{item.images && item.images.length > 0 && (
-												<div className={styles.imagePreviewGroup} onClick={(e) => e.stopPropagation()}>
-													<Image.PreviewGroup>
-														{item.images.map((img: string, idx: number) => (
-															<Image loading="lazy" key={idx} src={img} width={60} height={60} className={styles.previewImage} />
-														))}
-													</Image.PreviewGroup>
-												</div>
-											)}
-
-											{(item.mood || item.location || (item.tags && item.tags.length > 0)) && (
-												<Space wrap className={styles.tagSpace}>
-													{item.mood && (
-														<Tag icon={<SmileOutlined />} color="orange" className={styles.tag}>
-															{item.mood}
-														</Tag>
-													)}
-													{item.location && (
-														<Tag icon={<EnvironmentOutlined />} color="blue" className={styles.tag}>
-															{item.location}
-														</Tag>
-													)}
-													{item.tags?.map((tag: string) => (
-														<Tag key={tag} className={styles.tag}>
-															#{tag}
-														</Tag>
-													))}
-												</Space>
-											)}
-										</div>
-									</Card>
-								</Col>
-							))}
-						</Row>
-					) : (
-						<Empty className={styles.empty} description="目前还没有记录哦" />
-					)}
-
-					{diaryList.length > 0 && (
-						<Row>
-							<Pagination
-								size="small"
-								showQuickJumper
-								showSizeChanger
-								current={pageNum}
-								pageSize={pageSize}
-								total={diaryList.length}
-								onChange={onPageChange}
-								pageSizeOptions={[12, 24, 48, 96]}
-								className={styles.pagination}
-							/>
-						</Row>
-					)}
-				</Spin>
-
-				<Modal
-					title={editingIndex === -1 ? '添加日记' : '修改日记'}
-					open={isModalOpen}
-					onOk={throttledSave}
-					onCancel={() => setIsModalOpen(false)}
-					width={screens.md ? 600 : '95%'}
-					okText="保存"
-					cancelText="取消"
-					centered
-					mask={{ closable: false }}
-					destroyOnHidden
-				>
-					<Form form={form} layout="vertical">
-						<Form.Item name="id" hidden>
-							<Input />
-						</Form.Item>
-						<Row gutter={8}>
-							<Col xs={24} md={12}>
-								<Form.Item name="date" label="时间" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<DatePicker showTime className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-							<Col xs={24} md={12}>
-								<Form.Item name="mood" label="心情" className={styles.modalFormItem}>
-									<Input prefix={<SmileOutlined />} placeholder="现在的状态" />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item name="content" label="正文" rules={[{ required: true }]} className={styles.modalFormItem}>
-									<Input.TextArea placeholder="此刻在想什么..." rows={10} />
-								</Form.Item>
-							</Col>
-							<Col span={24}>
-								<Form.Item label="添加图片" className={styles.modalFormItem}>
-									<Space wrap>
-										<Upload showUploadList={false} beforeUpload={handleUpload} accept={imageAccept} multiple>
-											<Button loading={loading} icon={<UploadOutlined />}>
-												上传图片
-											</Button>
-										</Upload>
-										<Form.Item name="images" noStyle>
-											<div className={styles.imageList}>
-												{imagesValue?.map((url: string, i: number) => (
-													<div key={i} className={styles.imageItem}>
-														<Image loading="lazy" src={url} width={60} height={60} className={styles.imageItemImg} />
-														<DeleteOutlined
-															className={styles.imageDeleteBtn}
-															onClick={() => {
-																const next = imagesValue.filter((_: any, idx: number) => idx !== i)
-																form.setFieldsValue({ images: next })
-															}}
-														/>
-													</div>
-												))}
-											</div>
-										</Form.Item>
-									</Space>
-								</Form.Item>
-							</Col>
-							<Col span={12}>
-								<Form.Item name="location" label="地点" className={styles.modalFormItem}>
-									<Input prefix={<EnvironmentOutlined />} placeholder="在哪里？" />
-								</Form.Item>
-							</Col>
-							<Col span={12}>
-								<Form.Item name="tags" label="标签" className={styles.modalFormItem}>
-									<Select mode="tags" placeholder="添加标签" className={styles.fullWidth} />
-								</Form.Item>
-							</Col>
-						</Row>
-					</Form>
-				</Modal>
-			</Content>
-		</Layout>
+					<div className="grid gap-x-4 md:grid-cols-2">
+						<FormField name="location" label="地点">
+							<Input prefix={<MapPin className="size-4" />} placeholder="在哪里？" />
+						</FormField>
+						<FormField name="tags" label="标签">
+							<Select mode="tags" placeholder="输入标签后按回车" />
+						</FormField>
+					</div>
+				</Form>
+			</Dialog>
+		</Page>
 	)
 }

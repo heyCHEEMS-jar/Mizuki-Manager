@@ -12,42 +12,31 @@ module.exports = {
 	module: {
 		rules: [
 			{
+				test: /\.m?js$/,
+				resolve: { fullySpecified: false }
+			},
+			{
 				test: /\.[jt]sx?$/,
 				exclude: /node_modules/,
 				loader: 'esbuild-loader',
 				options: {
 					loader: 'tsx',
 					target: 'esnext',
+					jsx: 'automatic',
 					sourcemap: !isProd
 				}
 			},
 			{
-				test: /\.module\.scss$/,
-				use: [
-					isProd ? MiniCssExtractPlugin.loader : 'style-loader',
-					{
-						loader: 'css-loader',
-						options: {
-							// 开启模块化
-							modules: {
-								localIdentName: isProd ? '[hash:base64:8]' : '[path][name]__[local]',
-								namedExport: false, // 关闭命名导出
-								exportLocalsConvention: 'camelCase' // 转换为驼峰
-							}
-						}
-					},
-					'sass-loader'
-				]
-			},
-			{
-				test: /\.scss$/,
-				exclude: /\.module\.scss$/,
-				use: [isProd ? MiniCssExtractPlugin.loader : 'style-loader', 'css-loader', 'sass-loader']
+				test: /\.css$/,
+				use: [isProd ? MiniCssExtractPlugin.loader : 'style-loader', 'css-loader', 'postcss-loader']
 			}
 		]
 	},
 	resolve: {
-		extensions: ['.tsx', '.ts', '.jsx', '.js']
+		extensions: ['.tsx', '.ts', '.jsx', '.js'],
+		alias: {
+			'@': path.resolve(__dirname, 'src')
+		}
 	},
 	optimization: {
 		minimize: isProd,
@@ -55,19 +44,19 @@ module.exports = {
 			new EsbuildPlugin(
 				isProd
 					? {
-							target: 'esnext',
-							css: true,
-							jsx: 'automatic',
-							minify: true,
-							minifyWhitespace: true,
-							minifyIdentifiers: true,
-							minifySyntax: true,
-							drop: ['console', 'debugger'],
-							dropLabels: ['unused'],
-							ignoreAnnotations: true,
-							legalComments: 'none',
-							treeShaking: true
-						}
+						target: 'esnext',
+						css: true,
+						jsx: 'automatic',
+						minify: true,
+						minifyWhitespace: true,
+						minifyIdentifiers: true,
+						minifySyntax: true,
+						drop: ['console', 'debugger'],
+						dropLabels: ['unused'],
+						ignoreAnnotations: true,
+						legalComments: 'none',
+						treeShaking: true
+					}
 					: {}
 			)
 		],
@@ -114,11 +103,7 @@ module.exports = {
 	performance: {
 		hints: false
 	},
-	stats: {
-		preset: 'minimal',
-		moduleTrace: true,
-		errorDetails: true
-	},
+	stats: 'errors-warnings',
 	devServer: {
 		compress: false,
 		port: process.env.FRONTEND_DEV_PORT || 3000,
@@ -139,7 +124,7 @@ module.exports = {
 				watch: false
 			},
 			{
-				directory: '../frontend/public',
+				directory: path.resolve(__dirname, 'public'),
 				publicPath: '/',
 				watch: false
 			}

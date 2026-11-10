@@ -1,5 +1,5 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
-import { message } from 'antd'
+import { notify as message } from '../lib/notify'
 import { redirectToLogin } from './util'
 import { refreshToken } from './request'
 import { RefObject } from 'react'

@@ -1,37 +1,14 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import {
-	Card,
-	Row,
-	Col,
-	Tag,
-	Button,
-	Modal,
-	Form,
-	Input,
-	message,
-	Space,
-	Typography,
-	Spin,
-	Grid,
-	Layout,
-	Empty,
-	Pagination,
-	Checkbox,
-	CheckboxProps,
-	Popconfirm,
-	Upload,
-	Image,
-	InputNumber
-} from 'antd'
-import { CheckboxChangeEvent } from 'antd/es/checkbox'
-import { EditOutlined, DeleteOutlined, CustomerServiceOutlined, SoundOutlined, UploadOutlined, PictureOutlined } from '@ant-design/icons'
-import { getMusicConfig, writeMusicConfig, uploadCoverFile, uploadMusicFile } from '../services/music'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { Disc3, FileAudio, FileUp, Image as ImageIcon, Pencil, Play } from 'lucide-react'
+import { CollectionControls } from '../components/CollectionControls'
+import { Page, PageHeader, PageLoading } from '../components/Page'
+import { Button, Checkbox, Form, FormField, Image, Input, NumberInput, Dialog, Pagination, Upload, useForm, useFormWatch } from '../components/ui'
+import { audioAccept, imageAccept } from '../configs/upload-config'
+import { usePagedCollection } from '../hooks/usePagedCollection'
+import { notify } from '../lib/notify'
+import { getMusicConfig, uploadCoverFile, uploadMusicFile, writeMusicConfig } from '../services/music'
+import { cn } from '../lib/utils'
 import { throttle } from '../utils/util'
-import styles from '../styles/pages/music.module.scss'
-import { Content } from 'antd/es/layout/layout'
-import { imageAccept, audioAccept } from '../configs/upload-config'
-
-const { useBreakpoint } = Grid
 
 interface Song {
 	id: number | string
@@ -42,159 +19,107 @@ interface Song {
 	duration: number
 }
 
+const formatDuration = (seconds: number) => {
+	const minutes = Math.floor(seconds / 60)
+	return `${minutes}:${(seconds % 60).toString().padStart(2, '0')}`
+}
+
 export default function Music() {
-	const [msgApi, msgContextHolder] = message.useMessage()
-	const screens = useBreakpoint()
-	const [form] = Form.useForm()
+	const form = useForm()
 	const [loading, setLoading] = useState(false)
-	const [musicList, setMusicList] = useState<Song[]>([])
-	const [isModalOpen, setIsModalOpen] = useState(false)
+	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [editingIndex, setEditingIndex] = useState<number>()
-	const [pageList, setPageList] = useState<Song[]>([])
-	const [pageNum, setPageNum] = useState(1)
-	const [pageSize, setPageSize] = useState(12)
-	const [checkedIdxes, setCheckedIdxes] = useState<Set<number>>(new Set())
+	const collection = usePagedCollection<Song>()
+	const coverUrlValue = useFormWatch('cover', form)
+	const musicUrlValue = useFormWatch('url', form)
 
-	const coverUrlValue = Form.useWatch('cover', form)
-	const musicUrlValue = Form.useWatch('url', form)
-
-	const onCheckAllChange: CheckboxProps['onChange'] = (e) => {
-		setCheckedIdxes(e.target.checked ? new Set(pageList.map((_, index) => index)) : new Set())
-	}
-
-	const _handleCheck = (needCheck: boolean, index: number) => {
-		setCheckedIdxes((prev) => {
-			const next = new Set(prev)
-			if (needCheck) next.add(index)
-			else next.delete(index)
-			return next
-		})
-	}
-
-	const onCheckChange = (e: CheckboxChangeEvent, index: number) => {
-		e.stopPropagation()
-		_handleCheck(e?.target?.checked as boolean, index)
-	}
-
-	const onPageChange = async (page: number, size: number) => {
-		setCheckedIdxes(new Set())
-		setPageNum(page)
-		setPageSize(size)
-		setPageList(musicList.slice((page - 1) * size, page * size) || [])
-	}
-
-	const getConfig = useCallback(async (num: number, size: number) => {
+	const getConfig = useCallback(async (page: number, pageSize: number) => {
 		try {
 			setLoading(true)
 			const res = await getMusicConfig()
-			if (res.success) {
-				const data: Song[] = res.data?.LOCAL_PLAYLIST || []
-				setMusicList(data)
-				setPageList(data.slice((num - 1) * size, num * size) || [])
-			}
+			if (res.success) collection.setItems(res.data?.LOCAL_PLAYLIST || [], page, pageSize)
 		} catch {
 		} finally {
 			setLoading(false)
 		}
 	}, [])
 
-	const openEditModal = (e: React.MouseEvent | undefined, index: number) => {
-		e?.stopPropagation()
+	const openEditDialog = (event: MouseEvent | undefined, index: number) => {
+		event?.stopPropagation()
 		setEditingIndex(index)
-		form.resetFields()
-		if (index !== -1) {
-			form.setFieldsValue(pageList[index])
-		} else {
-			form.setFieldsValue({
-				id: Date.now()
-			})
-		}
-		setIsModalOpen(true)
+		form.reset()
+		form.setValues(index === -1 ? { id: Date.now() } : collection.pageItems[index])
+		setIsDialogOpen(true)
 	}
 
-	const updateList = useCallback(
-		async (newList: Song[], successMsg: string, num: number, size: number) => {
-			try {
-				setLoading(true)
-				const res = await writeMusicConfig({ LOCAL_PLAYLIST: newList })
-				if (res.success) {
-					msgApi.success(successMsg)
-					setIsModalOpen(false)
-					setCheckedIdxes(new Set())
-					await getConfig(num, size)
-				}
-			} catch {
-			} finally {
-				setLoading(false)
+	const updateList = useCallback(async (items: Song[], successMessage: string, page: number, pageSize: number) => {
+		try {
+			setLoading(true)
+			const res = await writeMusicConfig({ LOCAL_PLAYLIST: items })
+			if (res.success) {
+				notify.success(successMessage)
+				setIsDialogOpen(false)
+				await getConfig(page, pageSize)
 			}
-		},
-		[getConfig]
-	)
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [getConfig])
 
-	// 上传音乐封面
 	const uploadCover = async (file: File) => {
 		try {
 			setLoading(true)
 			const res = await uploadCoverFile(file)
 			if (res.success) {
-				msgApi.success('上传成功')
-				form.setFieldsValue({ cover: res.data?.[0]?.publicPath || '' })
+				notify.success('上传成功')
+				form.setValues({ cover: res.data?.[0]?.publicPath || '' })
 			}
 		} catch {
 		} finally {
 			setLoading(false)
-			return false
 		}
+		return false
 	}
 
-	// 上传音频文件
 	const uploadMusic = async (file: File) => {
 		try {
 			setLoading(true)
 			const res = await uploadMusicFile(file)
 			if (res.success) {
-				msgApi.success('上传成功')
-				form.setFieldsValue({ url: res.data?.[0]?.publicPath || '' })
+				notify.success('上传成功')
+				form.setValues({ url: res.data?.[0]?.publicPath || '' })
 			}
 		} catch {
 		} finally {
 			setLoading(false)
-			return false
 		}
+		return false
 	}
 
-	const _handleSave = useCallback(async () => {
+	const handleSave = useCallback(async () => {
 		if (editingIndex === undefined) return
 		try {
-			const values = await form.validateFields()
-			const newList = [...musicList]
-			if (editingIndex !== -1) {
-				const realIndex = musicList.findIndex((item) => item.id === pageList[editingIndex].id)
-				if (realIndex !== -1) newList[realIndex] = values
+			const values = await form.validate()
+			const items = [...collection.items]
+			if (editingIndex === -1) {
+				items.unshift(values)
 			} else {
-				newList.unshift(values)
+				const realIndex = items.findIndex((item) => item.id === collection.pageItems[editingIndex].id)
+				if (realIndex !== -1) items[realIndex] = values
 			}
-			await updateList(newList, editingIndex === -1 ? '添加成功' : '修改成功', pageNum, pageSize)
+			await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
 		} catch (err) {
 			console.error(err)
 		}
-	}, [updateList, musicList, editingIndex, pageList, pageNum, pageSize])
-
-	const throttledSave = useMemo(() => throttle(_handleSave, 2000, { immediate: true }), [_handleSave])
+	}, [collection.items, collection.page, collection.pageItems, collection.pageSize, editingIndex, form, updateList])
+	const throttledSave = useMemo(() => throttle(handleSave, 2000, { immediate: true }), [handleSave])
 
 	const removeSongs = async () => {
-		const removeIds = new Set(pageList.filter((_, index) => checkedIdxes.has(index)).map((i) => i.id))
-		const newList = musicList.filter((item) => !removeIds.has(item.id))
-		const newTotalPages = Math.max(1, Math.ceil(newList.length / pageSize))
-		const newPageNum = Math.min(pageNum, newTotalPages)
-		await updateList(newList, '删除成功', newPageNum, pageSize)
-	}
-
-	// 格式化时长 m:ss
-	const formatDuration = (seconds: number) => {
-		const min = Math.floor(seconds / 60)
-		const sec = seconds % 60
-		return `${min}:${sec.toString().padStart(2, '0')}`
+		const removeIds = new Set(collection.selectedItems.map((item) => item.id))
+		const items = collection.items.filter((item) => !removeIds.has(item.id))
+		const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
+		await updateList(items, '删除成功', page, collection.pageSize)
 	}
 
 	useEffect(() => {
@@ -202,184 +127,118 @@ export default function Music() {
 	}, [])
 
 	return (
-		<>
-			{msgContextHolder}
-			<Layout className={styles['layout-container']}>
-				<Content className={styles.content}>
-					<Spin spinning={loading}>
-						<div className={styles.toolbar}>
-							<div className={styles.toolbarTitle}>
-								<Typography.Title level={4} className={styles.pageTitle}>
-									<CustomerServiceOutlined /> 歌单管理
-								</Typography.Title>
-								<Typography.Text type="secondary">管理音乐播放器列表</Typography.Text>
-							</div>
-						</div>
+		<Page>
+			<PageHeader eyebrow="Playlist" title="歌单管理" description="维护音乐播放器中的歌曲、封面和音频资源。" />
+			<CollectionControls
+				itemCount={collection.pageItems.length}
+				selectedCount={collection.selected.size}
+				allSelected={collection.allSelected}
+				partiallySelected={collection.partiallySelected}
+				loading={loading}
+				addLabel="新增歌曲"
+				deleteTitle="删除选中的歌曲？"
+				deleteDescription="所选歌曲将从本地歌单中移除。"
+				onSelectAll={collection.selectAll}
+				onDelete={removeSongs}
+				onAdd={() => openEditDialog(undefined, -1)}
+			/>
 
-						<Space className={styles.actionBar}>
-							{pageList.length > 0 && (
-								<Checkbox
-									onChange={onCheckAllChange}
-									indeterminate={checkedIdxes.size > 0 && checkedIdxes.size < pageList.length}
-									checked={checkedIdxes.size === pageList.length}
-								>
-									全选
-								</Checkbox>
-							)}
-							{checkedIdxes.size > 0 && (
-								<Popconfirm title="确定删除选中的歌曲吗?" onConfirm={removeSongs} okText="确定" cancelText="取消">
-									<Button loading={loading} danger icon={<DeleteOutlined />}>
-										删除
-									</Button>
-								</Popconfirm>
-							)}
-							<Button loading={loading} icon={<EditOutlined />} onClick={() => openEditModal(undefined, -1)}>
-								新增歌曲
-							</Button>
-						</Space>
-
-						{pageList.length > 0 ? (
-							<Row gutter={[8, 8]}>
-								{pageList.map((item, index) => (
-									<Col key={item.id} xs={24} sm={12} lg={8} xl={6}>
-										<Card
-											className={styles.card}
-											hoverable
-											size="small"
-											onClick={() => _handleCheck(!checkedIdxes.has(index), index)}
-											cover={
-												<div className={styles.coverContainer}>
-													{item.cover ? (
-														<img loading="lazy" alt={item.title} src={item.cover} className={styles.coverImage} />
-													) : (
-														<div className={styles.coverPlaceholder}>
-															<PictureOutlined className={styles.coverPlaceholderIcon} />
-														</div>
-													)}
-												</div>
-											}
-											actions={[
-												<EditOutlined key="edit" onClick={(e) => openEditModal(e, index)} />,
-												<a key="play" href={item.url} target="_blank" onClick={(e) => e.stopPropagation()}>
-													<SoundOutlined />
-												</a>
-											]}
-										>
-											<Checkbox
-												className={styles.cardCheckbox}
-												style={{ opacity: checkedIdxes.has(index) ? 1 : 0.4 }}
-												checked={checkedIdxes.has(index)}
-												onChange={(e) => onCheckChange(e, index)}
-											/>
-											<Card.Meta
-												title={item.title}
-												description={
-													<Typography.Paragraph ellipsis={{ rows: 2 }} className={styles.cardDescription}>
-														{item.artist}
-													</Typography.Paragraph>
-												}
-											/>
-											<Space wrap size={[4, 0]} className={styles.tagSpace}>
-												<Tag className={styles.durationTag}>{formatDuration(item.duration)}</Tag>
-											</Space>
-										</Card>
-									</Col>
-								))}
-							</Row>
-						) : (
-							<Empty className={styles.empty} description="暂未添加歌曲~" />
-						)}
-
-						{musicList.length > 0 && (
-							<Row justify="center" className={styles.paginationWrapper}>
-								<Pagination
-									size="small"
-									showQuickJumper
-									showSizeChanger
-									current={pageNum}
-									pageSize={pageSize}
-									total={musicList.length}
-									onChange={onPageChange}
-									pageSizeOptions={[12, 24, 48, 96]}
-									className={styles.pagination}
-								/>
-							</Row>
-						)}
-					</Spin>
-
-					<Modal
-						title={editingIndex === -1 ? '新增歌曲' : '编辑歌曲'}
-						open={isModalOpen}
-						onOk={throttledSave}
-						onCancel={() => setIsModalOpen(false)}
-						width={550}
-						okText="保存"
-						cancelText="取消"
-						centered
-						mask={{ closable: false }}
-						destroyOnHidden
-					>
-						<Form form={form} layout="vertical">
-							<Form.Item name="id" hidden>
-								<Input />
-							</Form.Item>
-							<Row gutter={[8, 8]}>
-								<Col xs={24} md={12}>
-									<Form.Item name="title" label="歌曲名称" rules={[{ required: true }]} className={styles.modalFormItem}>
-										<Input placeholder="输入歌曲名称" />
-									</Form.Item>
-								</Col>
-								<Col xs={24} md={6}>
-									<Form.Item name="artist" label="艺术家" rules={[{ required: true }]} className={styles.modalFormItem}>
-										<Input placeholder="输入艺术家名称" />
-									</Form.Item>
-								</Col>
-								<Col xs={24} md={6}>
-									<Form.Item name="duration" label="时长(秒)" rules={[{ required: true }]} className={styles.modalFormItem}>
-										<InputNumber min={1} className={styles.fullWidth} placeholder="单位为秒" />
-									</Form.Item>
-								</Col>
-								<Col span={24}>
-									<div className={styles.modalImageWrapper}>
-										<Form.Item className={styles.modalFormItem} name="cover" label="封面图片" rules={[{ required: true }]}>
-											<Space.Compact className={styles.fullWidth}>
-												<Form.Item name="cover" noStyle>
-													<Input placeholder="输入图片链接" />
-												</Form.Item>
-												<Upload showUploadList={false} beforeUpload={uploadCover} accept={imageAccept}>
-													<Button loading={loading} icon={<UploadOutlined />}>
-														上传封面
-													</Button>
-												</Upload>
-											</Space.Compact>
-										</Form.Item>
-										{coverUrlValue && (
-											<Image loading="lazy" width={screens.md ? 70 : '100%'} height={70} className={styles.modalImage} src={coverUrlValue} />
-										)}
+			{loading && !collection.pageItems.length ? (
+				<PageLoading label="正在加载歌单..." />
+			) : collection.pageItems.length ? (
+				<div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
+					{collection.pageItems.map((item, index) => {
+						const selected = collection.selected.has(index)
+						return (
+							<article
+								key={item.id}
+								className={cn('group relative cursor-pointer overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md', selected && 'border-primary ring-2 ring-primary/15')}
+								role="button"
+								tabIndex={0}
+								onClick={() => collection.toggleItem(index)}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter' || event.key === ' ') collection.toggleItem(index)
+								}}
+							>
+								<div className="relative aspect-square overflow-hidden bg-muted">
+									{item.cover ? <img src={item.cover} alt={item.title} loading="lazy" className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <ImageIcon className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/40" />}
+									<Checkbox className="absolute right-3 top-3 rounded bg-background/85 p-1" checked={selected} onCheckedChange={(checked) => collection.setItemSelected(index, checked)} />
+									<span className="absolute bottom-3 right-3 rounded-md bg-black/65 px-2 py-1 text-xs text-white backdrop-blur">{formatDuration(item.duration)}</span>
+								</div>
+								<div className="p-4">
+									<h2 className="truncate font-semibold">{item.title}</h2>
+									<p className="mt-1 truncate text-sm text-muted-foreground">{item.artist}</p>
+									<div className="mt-4 flex justify-end gap-1 border-t pt-3">
+										<a href={item.url} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-primary" aria-label={`播放 ${item.title}`} onClick={(event) => event.stopPropagation()}><Play className="size-4" /></a>
+										<Button variant="ghost" size="small" className="size-8 px-0" aria-label={`编辑 ${item.title}`} onClick={(event) => openEditDialog(event, index)}><Pencil className="size-4" /></Button>
 									</div>
-								</Col>
-								<Col span={24}>
-									<div className={styles.audioWrapper}>
-										<Form.Item className={styles.modalFormItem} name="url" label="音频文件" rules={[{ required: true }]}>
-											<Space.Compact className={styles.fullWidth}>
-												<Form.Item name="url" noStyle>
-													<Input placeholder="输入音频链接" />
-												</Form.Item>
-												<Upload showUploadList={false} beforeUpload={uploadMusic} accept={audioAccept}>
-													<Button loading={loading} icon={<UploadOutlined />}>
-														上传音频
-													</Button>
-												</Upload>
-											</Space.Compact>
-										</Form.Item>
-										{musicUrlValue && <audio controls src={musicUrlValue} className={styles.audioPlayer} />}
-									</div>
-								</Col>
-							</Row>
-						</Form>
-					</Modal>
-				</Content>
-			</Layout>
-		</>
+								</div>
+							</article>
+						)
+					})}
+				</div>
+			) : (
+				<div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
+					<Disc3 className="size-10 opacity-40" />
+					<p>暂未添加歌曲</p>
+				</div>
+			)}
+
+			{collection.items.length > 0 && (
+				<Pagination
+					current={collection.page}
+					pageSize={collection.pageSize}
+					total={collection.items.length}
+					pageSizeOptions={[12, 24, 48, 96]}
+					showQuickJumper
+					showSizeChanger
+					onChange={collection.changePage}
+				/>
+			)}
+
+			<Dialog
+				title={editingIndex === -1 ? '新增歌曲' : '编辑歌曲'}
+				open={isDialogOpen}
+				onSubmit={throttledSave}
+				onCancel={() => setIsDialogOpen(false)}
+				width={600}
+				confirmLabel="保存"
+				closeOnOutside={false}
+			>
+				<Form form={form}>
+					<div className="grid gap-x-4 md:grid-cols-4">
+						<FormField name="title" label="歌曲名称" rules={[{ required: true }]} className="md:col-span-2">
+							<Input placeholder="输入歌曲名称" />
+						</FormField>
+						<FormField name="artist" label="艺术家" rules={[{ required: true }]}>
+							<Input placeholder="输入艺术家" />
+						</FormField>
+						<FormField name="duration" label="时长（秒）" rules={[{ required: true }]}>
+							<NumberInput min={1} placeholder="单位为秒" />
+						</FormField>
+					</div>
+
+					<div className="flex items-start gap-3">
+						<FormField name="cover" label="封面图片" rules={[{ required: true }]} className="min-w-0 flex-1">
+							<Input prefix={<ImageIcon className="size-4" />} placeholder="输入图片链接" />
+						</FormField>
+						<Upload beforeUpload={uploadCover} accept={imageAccept} disabled={loading}>
+							<Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>上传封面</Button>
+						</Upload>
+					</div>
+					{coverUrlValue && <Image src={coverUrlValue} alt="歌曲封面预览" className="mb-4 h-24 w-full rounded-lg border object-contain" />}
+
+					<div className="flex items-start gap-3">
+						<FormField name="url" label="音频文件" rules={[{ required: true }]} className="min-w-0 flex-1">
+							<Input prefix={<FileAudio className="size-4" />} placeholder="输入音频链接" />
+						</FormField>
+						<Upload beforeUpload={uploadMusic} accept={audioAccept} disabled={loading}>
+							<Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>上传音频</Button>
+						</Upload>
+					</div>
+					{musicUrlValue && <audio controls src={musicUrlValue} className="w-full" />}
+				</Form>
+			</Dialog>
+		</Page>
 	)
 }

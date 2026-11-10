@@ -14,13 +14,15 @@ app.use(cookieParser()) // 解析cookie
 
 const SAFE_PATH = path.resolve(config.BASE_PATH)
 app.use('/mizuki', (req, res, next) => {
-	const queryPath = req.path
-	if (!queryPath) return next()
+	const requestPath = req.path
+	if (!requestPath) return next()
 
-	const realPath = path.resolve(SAFE_PATH, queryPath.substring(1))
+	const realPath = path.resolve(SAFE_PATH, requestPath.slice(1))
+	const relativePath = path.relative(SAFE_PATH, realPath)
+	const isOutsideSafePath = relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
 
 	// 防止越出项目根目录访问
-	if (!realPath.startsWith(SAFE_PATH)) {
+	if (isOutsideSafePath) {
 		return res.status(403).json({
 			code: 403,
 			success: false,
