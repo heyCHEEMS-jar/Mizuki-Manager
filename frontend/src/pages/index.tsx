@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { LogOut, MonitorCog, Palette } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Page, PageHeader, PageLoading, PageSection } from '../components/Page'
 import { Button, ColorPicker, ConfirmDialog } from '../components/ui'
 import { managerList } from '../configs/manager-config'
@@ -35,6 +36,7 @@ const SystemMetric = ({ label, value }: { label: string; value: React.ReactNode 
 )
 
 export default function Index() {
+  const { t } = useTranslation()
   const [color, setColor] = useState(() => localStorage.getItem('color_rgb') || defaultTheme)
   const [systemInfo, setSystemInfo] = useState<SystemInfo>()
 
@@ -63,15 +65,15 @@ export default function Index() {
 
   const metrics = systemInfo
     ? [
-        { label: '主机名', value: systemInfo.hostname || '-' },
-        { label: '平台', value: systemInfo.platform || '-' },
-        { label: '架构', value: systemInfo.arch || '-' },
-        { label: '系统版本', value: `${systemInfo.type ?? ''} ${systemInfo.release ?? ''}`.trim() || '-' },
-        { label: 'CPU 核心数', value: systemInfo.cpus?.length ?? '-' },
-        { label: '总内存', value: formatBytes(systemInfo.totalMemory) },
-        { label: '空闲内存', value: formatBytes(systemInfo.freeMemory) },
-        { label: '运行时间', value: formatUptime(systemInfo.uptime) },
-        { label: '系统负载', value: systemInfo.loadAvg?.map(value => value.toFixed(2)).join(' / ') || '-' }
+        { label: t('dashboard.hostname'), value: systemInfo.hostname || '-' },
+        { label: t('dashboard.platform'), value: systemInfo.platform || '-' },
+        { label: t('dashboard.architecture'), value: systemInfo.arch || '-' },
+        { label: t('dashboard.release'), value: `${systemInfo.type ?? ''} ${systemInfo.release ?? ''}`.trim() || '-' },
+        { label: t('dashboard.cpu'), value: systemInfo.cpus?.length ?? '-' },
+        { label: t('dashboard.totalMemory'), value: formatBytes(systemInfo.totalMemory) },
+        { label: t('dashboard.freeMemory'), value: formatBytes(systemInfo.freeMemory) },
+        { label: t('dashboard.uptime'), value: formatUptime(systemInfo.uptime) },
+        { label: t('dashboard.load'), value: systemInfo.loadAvg?.map(value => value.toFixed(2)).join(' / ') || '-' }
       ]
     : []
 
@@ -80,10 +82,10 @@ export default function Index() {
       <PageHeader
         eyebrow="Dashboard"
         title="Mizuki Manager"
-        description="管理博客内容、媒体资源、构建任务与站点配置。"
+        description={t('dashboard.description')}
         actions={
           <>
-            <div className="flex items-center gap-1.5 rounded-lg border bg-card p-1.5" role="group" aria-label="主题颜色">
+            <div className="flex items-center gap-1.5 rounded-lg border bg-card p-1.5" role="group" aria-label={t('dashboard.theme')}>
               <Palette className="mx-1 size-4 text-muted-foreground" />
               <div className="hidden items-center gap-1 sm:flex">
                 {themeColors.map(theme => (
@@ -95,22 +97,22 @@ export default function Index() {
                       color === theme && 'ring-2 ring-foreground/50'
                     )}
                     style={{ backgroundColor: theme }}
-                    title={`切换主题色 ${theme}`}
+                    title={t('dashboard.switchTheme', { theme })}
                     onClick={() => updateColor(theme)}
                   />
                 ))}
               </div>
-              <ColorPicker value={color} onChange={updateColor} aria-label="自定义主题颜色" title="自定义主题颜色" />
+              <ColorPicker value={color} onChange={updateColor} aria-label={t('dashboard.customTheme')} title={t('dashboard.customTheme')} />
             </div>
             <ConfirmDialog
               trigger={
                 <Button variant="ghost" className="text-destructive hover:bg-destructive/10" icon={<LogOut className="size-4" />}>
-                  退出登录
+                  {t('dashboard.logout')}
                 </Button>
               }
-              title="退出登录？"
-              description="当前设备上的登录状态将被清除。"
-              confirmLabel="退出"
+              title={t('dashboard.logoutTitle')}
+              description={t('dashboard.logoutDescription')}
+              confirmLabel={t('dashboard.exit')}
               variant="destructive"
               onConfirm={redirectToLogin}
             />
@@ -121,14 +123,14 @@ export default function Index() {
       <section aria-labelledby="manager-title">
         <div className="mb-4">
           <h2 id="manager-title" className="text-lg font-semibold">
-            管理功能
+            {t('dashboard.features')}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">选择需要维护的内容模块。</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.featureDescription')}</p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {managerList
             .filter(item => !item.hideFromHome)
-            .map(({ title, subtitle, icon: Icon, path }) => (
+            .map(({ titleKey, subtitleKey, icon: Icon, path }) => (
               <Link
                 key={path}
                 to={path}
@@ -138,8 +140,8 @@ export default function Index() {
                   <Icon className="size-5" aria-hidden="true" />
                 </span>
                 <span className="mt-4 min-w-0">
-                  <span className="block truncate text-sm font-semibold">{title}</span>
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">{subtitle}</span>
+                  <span className="block truncate text-sm font-semibold">{t(titleKey)}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">{t(subtitleKey)}</span>
                 </span>
               </Link>
             ))}
@@ -150,10 +152,10 @@ export default function Index() {
         title={
           <span className="flex items-center gap-2">
             <MonitorCog className="size-4 text-primary" />
-            服务器状态
+            {t('dashboard.server')}
           </span>
         }
-        description="系统信息每 30 秒自动更新。"
+        description={t('dashboard.serverDescription')}
         bodyClassName="p-4 sm:p-5"
       >
         {systemInfo ? (
@@ -163,7 +165,7 @@ export default function Index() {
             ))}
           </dl>
         ) : (
-          <PageLoading label="正在获取服务器信息..." />
+          <PageLoading label={t('dashboard.loadingServer')} />
         )}
       </PageSection>
     </Page>

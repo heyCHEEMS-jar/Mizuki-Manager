@@ -17,9 +17,11 @@
     "ansi-to-html": "^0.7.2",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.20",
+    "i18next": "^27.1.0",
     "lucide-react": "^1.70.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-i18next": "^18.0.1",
     "react-router-dom": "^7.14.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0"

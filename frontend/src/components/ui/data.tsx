@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import i18n from '@/i18n'
 import { Button, Select } from './core'
 
 interface PaginationProps {
@@ -26,6 +28,7 @@ export const Pagination = ({
   showTotal,
   className
 }: PaginationProps) => {
+  const { t } = useTranslation()
   const pages = Math.max(1, Math.ceil(total / pageSize))
   const [jumpPage, setJumpPage] = useState('')
   const visiblePages = Array.from({ length: Math.min(5, pages) }, (_, index) => {
@@ -41,7 +44,7 @@ export const Pagination = ({
         disabled={current <= 1}
         icon={<ChevronLeft className="size-4" />}
         onClick={() => onChange?.(current - 1, pageSize)}
-        aria-label="上一页"
+        aria-label={t('common.previous')}
       />
       {visiblePages.map(page => (
         <Button key={page} size="small" variant={page === current ? 'default' : 'outline'} onClick={() => onChange?.(page, pageSize)}>
@@ -53,20 +56,20 @@ export const Pagination = ({
         disabled={current >= pages}
         icon={<ChevronRight className="size-4" />}
         onClick={() => onChange?.(current + 1, pageSize)}
-        aria-label="下一页"
+        aria-label={t('common.next')}
       />
       {showSizeChanger && (
-        <div className="w-24">
+        <div className="min-w-32">
           <Select
             value={pageSize}
-            options={pageSizeOptions.map(size => ({ label: `${size} 条`, value: Number(size) }))}
+            options={pageSizeOptions.map(size => ({ label: t('common.perPage', { count: size }), value: Number(size) }))}
             onChange={size => onChange?.(1, Number(size))}
           />
         </div>
       )}
       {showQuickJumper && (
         <label className="flex items-center gap-1 text-muted-foreground">
-          跳至
+          {t('common.jumpTo')}
           <input
             type="number"
             min={1}
@@ -78,7 +81,7 @@ export const Pagination = ({
               if (event.key === 'Enter' && jumpPage) onChange?.(Math.max(1, Math.min(pages, Number(jumpPage))), pageSize)
             }}
           />
-          页
+          {t('common.page')}
         </label>
       )}
     </div>
@@ -98,6 +101,6 @@ export const Divider = ({
     )}
     {...props}
   >
-    {children}
+    {typeof children === 'string' ? i18n.t(`labels.${children}`, { defaultValue: children }) : children}
   </div>
 )

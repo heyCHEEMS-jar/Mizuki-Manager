@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import { BookOpen, FileUp, MapPin, Pencil, Smile, X } from 'lucide-react'
 import { CollectionControls } from '../components/CollectionControls'
@@ -37,6 +39,7 @@ interface DiaryItem {
 }
 
 export default function Diary() {
+  const { t } = useTranslation()
   const form = useForm()
   const [loading, setLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -99,7 +102,12 @@ export default function Diary() {
         if (realIndex !== -1) items.splice(realIndex, 1)
       }
       items.unshift(item)
-      await updateList(items, editingIndex === -1 ? '记录成功' : '修改成功', collection.page, collection.pageSize)
+      await updateList(
+        items,
+        editingIndex === -1 ? i18n.t('notifications.recordSuccess') : i18n.t('notifications.editSuccess'),
+        collection.page,
+        collection.pageSize
+      )
     } catch (err) {
       console.error(err)
     }
@@ -114,7 +122,7 @@ export default function Diary() {
       if (res.success) {
         const newImages = res.data?.map((item: any) => item.publicPath) || []
         form.setValues({ images: [...imagesValue, ...newImages] })
-        notify.success('上传成功')
+        notify.success(i18n.t('notifications.uploadSuccess'))
       }
     } catch {
     } finally {
@@ -127,7 +135,7 @@ export default function Diary() {
     const removeIds = new Set(collection.selectedItems.map(item => item.id))
     const items = collection.items.filter(item => !removeIds.has(item.id))
     const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
-    await updateList(items, '删除成功', page, collection.pageSize)
+    await updateList(items, i18n.t('notifications.deleteSuccess'), page, collection.pageSize)
   }
 
   useEffect(() => {
@@ -136,23 +144,23 @@ export default function Diary() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Journal" title="日记管理" description="记录生活片段、心情、地点和影像。" />
+      <PageHeader eyebrow="Journal" title={t('pages.diary.title')} description={t('pages.diary.description')} />
       <CollectionControls
         itemCount={collection.pageItems.length}
         selectedCount={collection.selected.size}
         allSelected={collection.allSelected}
         partiallySelected={collection.partiallySelected}
         loading={loading}
-        addLabel="写日记"
-        deleteTitle="删除选中的日记？"
-        deleteDescription="所选记录将从日记配置中移除。"
+        addLabel={t('pages.diary.add')}
+        deleteTitle={t('pages.diary.deleteTitle')}
+        deleteDescription={t('fields.deleteDiaryDescription')}
         onSelectAll={collection.selectAll}
         onDelete={removeDiary}
         onAdd={() => openEditDialog(undefined, -1)}
       />
 
       {loading && !collection.pageItems.length ? (
-        <PageLoading label="正在加载日记..." />
+        <PageLoading />
       ) : collection.pageItems.length ? (
         <div className={cn('grid gap-4 sm:grid-cols-2 xl:grid-cols-3', loading && 'pointer-events-none opacity-60')}>
           {collection.pageItems.map((item, index) => {
@@ -183,7 +191,7 @@ export default function Diary() {
                 {item.images?.length ? (
                   <div className="mt-4 flex gap-2 overflow-hidden" onClick={event => event.stopPropagation()}>
                     {item.images.slice(0, 4).map((image, imageIndex) => (
-                      <Image key={`${image}-${imageIndex}`} src={image} alt="日记图片" className="size-14 rounded-md object-cover" />
+                      <Image key={`${image}-${imageIndex}`} src={image} alt={t('fields.diaryImage')} className="size-14 rounded-md object-cover" />
                     ))}
                   </div>
                 ) : null}
@@ -210,7 +218,7 @@ export default function Diary() {
                   variant="ghost"
                   size="small"
                   className="absolute bottom-3 right-3 size-8 px-0"
-                  aria-label="编辑日记"
+                  aria-label={t('fields.editDiary')}
                   onClick={event => openEditDialog(event, index)}
                 >
                   <Pencil className="size-4" />
@@ -222,7 +230,7 @@ export default function Diary() {
       ) : (
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
           <BookOpen className="size-10 opacity-40" />
-          <p>目前还没有记录</p>
+          <p>{t('fields.emptyDiary')}</p>
         </div>
       )}
 
@@ -239,41 +247,41 @@ export default function Diary() {
       )}
 
       <Dialog
-        title={editingIndex === -1 ? '添加日记' : '修改日记'}
+        title={editingIndex === -1 ? t('fields.addDiary') : t('fields.editDiary')}
         open={isDialogOpen}
         onSubmit={throttledSave}
         onCancel={() => setIsDialogOpen(false)}
         width={640}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
         closeOnOutside={false}
       >
         <Form form={form}>
           <div className="grid gap-x-4 md:grid-cols-2">
-            <FormField name="date" label="时间" rules={[{ required: true }]}>
+            <FormField name="date" label={t('fields.time')} rules={[{ required: true }]}>
               <DatePicker showTime />
             </FormField>
-            <FormField name="mood" label="心情">
-              <Input prefix={<Smile className="size-4" />} placeholder="现在的状态" />
+            <FormField name="mood" label={t('fields.mood')}>
+              <Input prefix={<Smile className="size-4" />} placeholder={t('fields.mood')} />
             </FormField>
           </div>
-          <FormField name="content" label="正文" rules={[{ required: true }]}>
-            <Textarea placeholder="此刻在想什么..." rows={8} />
+          <FormField name="content" label={t('fields.content')} rules={[{ required: true }]}>
+            <Textarea placeholder={t('fields.content')} rows={8} />
           </FormField>
           <div className="mb-4">
-            <div className="mb-2 text-sm font-medium">图片</div>
+            <div className="mb-2 text-sm font-medium">{t('fields.images')}</div>
             <div className="flex flex-wrap items-center gap-2">
               <Upload beforeUpload={handleUpload} accept={imageAccept} multiple disabled={loading}>
                 <Button icon={<FileUp className="size-4" />} loading={loading}>
-                  上传图片
+                  {t('fields.uploadImages')}
                 </Button>
               </Upload>
               {imagesValue.map((url: string, index: number) => (
                 <div key={`${url}-${index}`} className="relative">
-                  <Image src={url} alt="日记图片预览" className="size-16 rounded-md border object-cover" />
+                  <Image src={url} alt={t('fields.diaryPreview')} className="size-16 rounded-md border object-cover" />
                   <button
                     type="button"
                     className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-destructive text-white shadow"
-                    aria-label="移除图片"
+                    aria-label={t('common.remove')}
                     onClick={() => form.setValues({ images: imagesValue.filter((_: string, itemIndex: number) => itemIndex !== index) })}
                   >
                     <X className="size-3" />
@@ -283,11 +291,11 @@ export default function Diary() {
             </div>
           </div>
           <div className="grid gap-x-4 md:grid-cols-2">
-            <FormField name="location" label="地点">
-              <Input prefix={<MapPin className="size-4" />} placeholder="在哪里？" />
+            <FormField name="location" label={t('fields.place')}>
+              <Input prefix={<MapPin className="size-4" />} placeholder={t('fields.place')} />
             </FormField>
-            <FormField name="tags" label="标签">
-              <Select mode="tags" placeholder="输入标签后按回车" />
+            <FormField name="tags" label={t('fields.tags')}>
+              <Select mode="tags" placeholder={t('fields.tags')} />
             </FormField>
           </div>
         </Form>

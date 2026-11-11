@@ -5,6 +5,7 @@ import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { Check, ChevronDown, Eye, EyeOff, LoaderCircle, X } from 'lucide-react'
 import dayjs from 'dayjs'
 import { cn } from '@/lib/utils'
+import i18n from '@/i18n'
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'default' | 'outline' | 'ghost' | 'destructive' | 'link'
@@ -48,40 +49,53 @@ interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, '
   allowClear?: boolean
 }
 
-const InputBase = React.forwardRef<HTMLInputElement, InputProps>(({ prefix, suffix, allowClear, className, value, onChange, ...props }, ref) => (
-  <div
-    className={cn(
-      'flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 shadow-xs focus-within:ring-2 focus-within:ring-ring',
-      className
-    )}
-  >
-    {prefix && <span className="shrink-0 text-muted-foreground">{prefix}</span>}
-    <input
-      ref={ref}
-      value={value}
-      onChange={onChange}
-      className="h-9 min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
-      {...props}
-    />
-    {allowClear && value !== undefined && value !== '' && (
-      <button
-        type="button"
-        className="text-muted-foreground hover:text-foreground"
-        aria-label="清空"
-        onClick={() => onChange?.({ target: { value: '' } } as any)}
+const InputBase = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ prefix, suffix, allowClear, className, value, onChange, placeholder, ...props }, ref) => {
+    const displayPlaceholder =
+      typeof placeholder === 'string' && i18n.resolvedLanguage === 'en' && (placeholder.startsWith('例如:') || placeholder.startsWith('例如：'))
+        ? `e.g. ${placeholder.slice(3).trim()}`
+        : placeholder
+    return (
+      <div
+        className={cn(
+          'flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 shadow-xs focus-within:ring-2 focus-within:ring-ring',
+          className
+        )}
       >
-        <X className="size-3.5" />
-      </button>
-    )}
-    {suffix && <span className="shrink-0 text-muted-foreground">{suffix}</span>}
-  </div>
-))
+        {prefix && <span className="shrink-0 text-muted-foreground">{prefix}</span>}
+        <input
+          ref={ref}
+          value={value}
+          onChange={onChange}
+          placeholder={displayPlaceholder}
+          className="h-9 min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          {...props}
+        />
+        {allowClear && value !== undefined && value !== '' && (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={i18n.t('common.clear')}
+            onClick={() => onChange?.({ target: { value: '' } } as any)}
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
+        {suffix && <span className="shrink-0 text-muted-foreground">{suffix}</span>}
+      </div>
+    )
+  }
+)
 InputBase.displayName = 'Input'
 
 export const Textarea = React.forwardRef<
   HTMLTextAreaElement,
   React.TextareaHTMLAttributes<HTMLTextAreaElement> & { autoSize?: boolean | { minRows?: number; maxRows?: number }; showCount?: boolean }
->(({ autoSize, showCount, className, value, ...props }, ref) => {
+>(({ autoSize, showCount, className, value, placeholder, ...props }, ref) => {
+  const displayPlaceholder =
+    typeof placeholder === 'string' && i18n.resolvedLanguage === 'en' && (placeholder.startsWith('例如:') || placeholder.startsWith('例如：'))
+      ? `e.g. ${placeholder.slice(3).trim()}`
+      : placeholder
   const minRows = typeof autoSize === 'object' ? autoSize.minRows : undefined
   return (
     <div className="w-full">
@@ -89,6 +103,7 @@ export const Textarea = React.forwardRef<
         ref={ref}
         value={value}
         rows={props.rows || minRows}
+        placeholder={displayPlaceholder}
         className={cn(
           'min-h-20 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
           className
@@ -109,7 +124,11 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, InputProps>(({ s
       type={visible ? 'text' : 'password'}
       suffix={
         suffix || (
-          <button type="button" onClick={() => setVisible(current => !current)} aria-label={visible ? '隐藏密码' : '显示密码'}>
+          <button
+            type="button"
+            onClick={() => setVisible(current => !current)}
+            aria-label={i18n.t(visible ? 'common.hidePassword' : 'common.showPassword')}
+          >
             {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         )
@@ -270,7 +289,7 @@ export const Select = ({ value, defaultValue, onChange, options = [], placeholde
     >
       <SelectPrimitive.Trigger
         className={cn(
-          'flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring data-placeholder:text-muted-foreground',
+          'flex h-9 w-full items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring data-placeholder:text-muted-foreground',
           className
         )}
       >
@@ -297,7 +316,9 @@ export const Select = ({ value, defaultValue, onChange, options = [], placeholde
                     <Check className="size-4" />
                   </SelectPrimitive.ItemIndicator>
                 </span>
-                <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                <SelectPrimitive.ItemText>
+                  {typeof option.label === 'string' ? i18n.t(`options.${option.label}`, { defaultValue: option.label }) : option.label}
+                </SelectPrimitive.ItemText>
               </SelectPrimitive.Item>
             ))}
           </SelectPrimitive.Viewport>
@@ -326,6 +347,7 @@ export const Upload = ({ beforeUpload, accept, multiple, children, disabled }: U
       <input
         ref={inputRef}
         type="file"
+        hidden
         accept={accept}
         multiple={multiple}
         disabled={disabled}
@@ -348,26 +370,36 @@ interface DatePickerProps {
   onChange?: (value: any) => void
   picker?: 'date' | 'month' | 'year'
   showTime?: boolean
+  valueFormat?: string
   placeholder?: string
   className?: string
   disabled?: boolean
 }
 
-export const DatePicker = ({ value, onChange, picker = 'date', showTime, placeholder, className, disabled }: DatePickerProps) => {
+export const DatePicker = ({ value, onChange, picker = 'date', showTime, valueFormat, placeholder, className, disabled }: DatePickerProps) => {
   const type = showTime ? 'datetime-local' : picker === 'month' ? 'month' : picker === 'year' ? 'number' : 'date'
   const format = showTime ? 'YYYY-MM-DDTHH:mm' : picker === 'month' ? 'YYYY-MM' : picker === 'year' ? 'YYYY' : 'YYYY-MM-DD'
-  const displayValue = value?.format ? value.format(format) : value || ''
+  const displayValue = value?.format ? (value.isValid?.() ? value.format(format) : '') : value || ''
   return (
     <input
+      key={i18n.resolvedLanguage}
       type={type}
       value={displayValue}
       disabled={disabled}
+      lang={i18n.resolvedLanguage === 'en' ? 'en-US' : 'zh-CN'}
       placeholder={placeholder}
       className={cn(
         'h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring',
         className
       )}
-      onChange={event => onChange?.(event.target.value ? dayjs(picker === 'year' ? `${event.target.value}-01-01` : event.target.value) : undefined)}
+      onChange={event => {
+        if (!event.target.value) {
+          onChange?.(undefined)
+          return
+        }
+        const date = dayjs(picker === 'year' ? `${event.target.value}-01-01` : event.target.value)
+        onChange?.(valueFormat ? date.format(valueFormat) : date)
+      }}
     />
   )
 }

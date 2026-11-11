@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { CircleAlert, CircleStop, Rocket, Trash2, X } from 'lucide-react'
 import { Page, PageHeader, PageSection } from '../components/Page'
 import { Button, ConfirmDialog } from '../components/ui'
@@ -8,6 +10,7 @@ import { useBuilderLogDB } from '../hooks/useBuilderLogDB'
 import type { LogWorkerResponse } from '../utils/ansi-log.worker'
 
 export default function Builder() {
+  const { t } = useTranslation()
   const logDB = useBuilderLogDB()
   const [loading, setLoading] = useState(false)
   const [hasLog, setHasLog] = useState(false)
@@ -86,7 +89,7 @@ export default function Builder() {
         else appendLog(newLog)
       },
       onDone: (data: any) => {
-        if (data?.message) appendLog(data.message)
+        if (data?.message) appendLog(data.message === '无运行中的任务' ? t('fields.noRunningTask') : data.message)
         setLoading(false)
       },
       onError: (err: any) => {
@@ -95,7 +98,7 @@ export default function Builder() {
         console.error(err)
       }
     }),
-    [appendLog, replaceLog]
+    [appendLog, replaceLog, t]
   )
 
   // 启动部署
@@ -109,8 +112,8 @@ export default function Builder() {
   const clearLogCache = async () => {
     replaceLog('', false)
     const res = await logDB.clearCache()
-    if (res) notify.success('已清空日志缓存')
-    else notify.error('清空失败')
+    if (res) notify.success(i18n.t('notifications.clearLogSuccess'))
+    else notify.error(i18n.t('notifications.clearFailed'))
   }
 
   // 取消部署
@@ -120,7 +123,7 @@ export default function Builder() {
       ctrlRef.current?.abort()
       const res = await stopDeployProcess()
       if (res.success) {
-        notify.success('已停止部署')
+        notify.success(i18n.t('notifications.deployStopped'))
         appendLog('\n[System] 已终止部署子进程\n')
       }
     } catch {
@@ -178,19 +181,19 @@ export default function Builder() {
     <Page className="flex min-h-screen flex-col">
       <PageHeader
         eyebrow="Deployment"
-        title="构建部署"
-        description="构建项目并将最新资源同步到生产环境。"
+        title={t('pages.builder.title')}
+        description={t('pages.builder.description')}
         actions={
           <>
             {hasLog && (
               <ConfirmDialog
                 trigger={
                   <Button icon={<Trash2 className="size-4" />} disabled={loading}>
-                    清空日志
+                    {t('common.clearLogs')}
                   </Button>
                 }
-                title="清空构建日志？"
-                description="本地保存的构建日志将被永久清除。"
+                title={t('fields.clearBuildTitle')}
+                description={t('fields.clearBuildDescription')}
                 variant="destructive"
                 onConfirm={clearLogCache}
               />
@@ -198,24 +201,24 @@ export default function Builder() {
             <ConfirmDialog
               trigger={
                 <Button variant="destructive" icon={<CircleStop className="size-4" />}>
-                  终止进程
+                  {t('common.stopProcess')}
                 </Button>
               }
-              title="终止部署进程？"
-              description="如遇执行异常，可终止当前进程后重新部署。"
-              confirmLabel="终止"
+              title={t('fields.stopDeployTitle')}
+              description={t('fields.stopDeployDescription')}
+              confirmLabel={t('common.stop')}
               variant="destructive"
               onConfirm={cancelDeploy}
             />
             <ConfirmDialog
               trigger={
                 <Button variant="default" icon={<Rocket className="size-4" />} loading={loading}>
-                  一键部署
+                  {t('common.deploy')}
                 </Button>
               }
-              title="开始部署？"
-              description="项目将重新构建并同步资源，通常需要几十秒。"
-              confirmLabel="开始部署"
+              title={t('fields.startBuildTitle')}
+              description={t('fields.startBuildDescription')}
+              confirmLabel={t('common.startDeploy')}
               onConfirm={handleDeploy}
             />
           </>
@@ -225,11 +228,11 @@ export default function Builder() {
       {showNotice && (
         <div className="relative flex gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 pr-10 text-sm text-blue-900">
           <CircleAlert className="mt-0.5 size-4 shrink-0" />
-          <p>构建并同步资源时，请勿刷新或切换页面，以免丢失实时日志。</p>
+          <p>{t('fields.buildNotice')}</p>
           <button
             type="button"
             className="absolute right-3 top-2.5 rounded p-0.5 opacity-60 hover:opacity-100"
-            aria-label="关闭提示"
+            aria-label={t('fields.closeNotice')}
             onClick={() => setShowNotice(false)}
           >
             <X className="size-4" />
@@ -238,8 +241,8 @@ export default function Builder() {
       )}
 
       <PageSection
-        title="构建日志"
-        description={loading ? '部署正在执行，日志将实时更新' : hasLog ? '最近一次构建的输出记录' : '尚未执行构建任务'}
+        title={t('fields.buildLog')}
+        description={loading ? t('fields.runningLog') : hasLog ? t('fields.latestLog') : t('fields.noBuildTask')}
         className="flex min-h-0 flex-1 flex-col"
         bodyClassName="min-h-0 flex-1 p-0"
       >
@@ -253,8 +256,8 @@ export default function Builder() {
               <Rocket className="size-6" />
             </span>
             <div>
-              <p className="font-medium text-foreground">暂无构建日志</p>
-              <p className="mt-1">点击“一键部署”开始构建。</p>
+              <p className="font-medium text-foreground">{t('fields.noBuildLog')}</p>
+              <p className="mt-1">{t('fields.deployHint')}</p>
             </div>
           </div>
         )}

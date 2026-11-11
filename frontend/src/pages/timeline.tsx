@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { Icon } from '@iconify/react'
 import dayjs from 'dayjs'
 import { BriefcaseBusiness, ExternalLink, GraduationCap, Landmark, MapPin, Pencil, Trash2, Trophy, Users } from 'lucide-react'
@@ -63,6 +65,7 @@ const linkTypeOptions = [
 const formatDate = (date?: string) => (date ? dayjs(date).format('YYYY年MM月') : '')
 
 export default function Timeline() {
+  const { t } = useTranslation()
   const form = useForm()
   const [loading, setLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -152,7 +155,12 @@ export default function Timeline() {
         const realIndex = items.findIndex(entry => entry.id === collection.pageItems[editingIndex].id)
         if (realIndex !== -1) items[realIndex] = item
       }
-      await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
+      await updateList(
+        items,
+        editingIndex === -1 ? i18n.t('notifications.addSuccess') : i18n.t('notifications.editSuccess'),
+        collection.page,
+        collection.pageSize
+      )
     } catch (err) {
       console.error(err)
     }
@@ -163,7 +171,7 @@ export default function Timeline() {
     const removeIds = new Set(collection.selectedItems.map(item => item.id))
     const items = collection.items.filter(item => !removeIds.has(item.id))
     const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
-    await updateList(items, '删除成功', page, collection.pageSize)
+    await updateList(items, i18n.t('notifications.deleteSuccess'), page, collection.pageSize)
   }
 
   useEffect(() => {
@@ -172,23 +180,23 @@ export default function Timeline() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Milestones" title="时间线管理" description="维护成长经历、重要里程碑和相关成果。" />
+      <PageHeader eyebrow="Milestones" title={t('pages.timeline.title')} description={t('pages.timeline.description')} />
       <CollectionControls
         itemCount={collection.pageItems.length}
         selectedCount={collection.selected.size}
         allSelected={collection.allSelected}
         partiallySelected={collection.partiallySelected}
         loading={loading}
-        addLabel="添加条目"
-        deleteTitle="删除选中的时间线条目？"
-        deleteDescription="所选经历将从时间线中移除。"
+        addLabel={t('pages.timeline.add')}
+        deleteTitle={t('pages.timeline.deleteTitle')}
+        deleteDescription={t('fields.deleteTimelineDescription')}
         onSelectAll={collection.selectAll}
         onDelete={removeTimelineItems}
         onAdd={() => openEditDialog(undefined, -1)}
       />
 
       {loading && !collection.pageItems.length ? (
-        <PageLoading label="正在加载时间线..." />
+        <PageLoading />
       ) : collection.pageItems.length ? (
         <div
           className={cn(
@@ -231,8 +239,10 @@ export default function Timeline() {
                     <span className="rounded-md px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: color }}>
                       {meta.label}
                     </span>
-                    {item.featured && <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs text-amber-700">精选</span>}
-                    {!item.endDate && <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">当前状态</span>}
+                    {item.featured && <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{t('fields.featured')}</span>}
+                    {!item.endDate && (
+                      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">{t('fields.currentStatus')}</span>
+                    )}
                   </div>
                   <h2 className="mt-3 text-lg font-semibold">{item.title}</h2>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -306,7 +316,7 @@ export default function Timeline() {
       ) : (
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
           <Landmark className="size-10 opacity-40" />
-          <p>快来添加你的第一段经历</p>
+          <p>{t('fields.emptyTimeline')}</p>
         </div>
       )}
 
@@ -323,84 +333,84 @@ export default function Timeline() {
       )}
 
       <Dialog
-        title={editingIndex === -1 ? '添加时间线条目' : '编辑时间线条目'}
+        title={editingIndex === -1 ? t('fields.addTimeline') : t('fields.editTimeline')}
         open={isDialogOpen}
         onSubmit={throttledSave}
         onCancel={() => setIsDialogOpen(false)}
         width={760}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
         closeOnOutside={false}
       >
         <Form form={form} initialValues={{ type: 'education', featured: false, color: '#1890ff' }}>
           <div className="grid gap-x-4 md:grid-cols-12">
-            <FormField name="title" label="标题" rules={[{ required: true }]} className="md:col-span-7">
-              <Input placeholder="输入标题" />
+            <FormField name="title" label={t('fields.title')} rules={[{ required: true }]} className="md:col-span-7">
+              <Input placeholder={t('fields.title')} />
             </FormField>
-            <FormField name="type" label="类型" rules={[{ required: true }]} className="md:col-span-3">
+            <FormField name="type" label={t('fields.type')} rules={[{ required: true }]} className="md:col-span-3">
               <Select options={typeOptions} />
             </FormField>
-            <FormField name="featured" label="是否精选" valueKey="checked" className="md:col-span-2">
+            <FormField name="featured" label={t('fields.featured')} valueKey="checked" className="md:col-span-2">
               <Switch />
             </FormField>
-            <FormField name="organization" label="组织 / 机构" className="md:col-span-7">
-              <Input placeholder="例如：某大学 / 某公司" />
+            <FormField name="organization" label={t('fields.organization')} className="md:col-span-7">
+              <Input placeholder={t('fields.organization')} />
             </FormField>
-            <FormField name="location" label="地点" className="md:col-span-3">
-              <Input placeholder="例如：北京" />
+            <FormField name="location" label={t('fields.place')} className="md:col-span-3">
+              <Input placeholder={t('fields.place')} />
             </FormField>
-            <FormField name="color" label="主题颜色" className="md:col-span-2">
+            <FormField name="color" label={t('fields.themeColor')} className="md:col-span-2">
               <ColorPicker className="h-9 w-full" />
             </FormField>
-            <FormField name="startDate" label="开始日期" rules={[{ required: true }]} className="md:col-span-6">
+            <FormField name="startDate" label={t('fields.startDate')} rules={[{ required: true }]} className="md:col-span-6">
               <DatePicker />
             </FormField>
-            <FormField name="endDate" label="结束日期" className="md:col-span-6">
-              <DatePicker placeholder="留空表示至今" />
+            <FormField name="endDate" label={t('fields.endDate')} className="md:col-span-6">
+              <DatePicker placeholder={t('fields.endDate')} />
             </FormField>
-            <FormField name="position" label="职位 / 角色" className="md:col-span-6">
-              <Input placeholder="例如：前端开发实习生" />
+            <FormField name="position" label={t('fields.position')} className="md:col-span-6">
+              <Input placeholder={t('fields.position')} />
             </FormField>
             <FormField
               name="icon"
               label={
                 <span className="inline-flex items-center gap-2">
-                  图标
+                  {t('fields.icon')}
                   <a
                     href={process.env.ICONIFY_URL}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                   >
-                    访问 Iconify
+                    {t('fields.visitIconify')}
                     <ExternalLink className="size-3" />
                   </a>
                 </span>
               }
               className="md:col-span-6"
             >
-              <Input placeholder="例如：material-symbols:school" suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : undefined} />
+              <Input placeholder={t('fields.icon')} suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : undefined} />
             </FormField>
           </div>
-          <FormField name="description" label="描述" rules={[{ required: true }]}>
-            <Textarea rows={3} placeholder="详细描述这段经历..." />
+          <FormField name="description" label={t('fields.description')} rules={[{ required: true }]}>
+            <Textarea rows={3} placeholder={t('fields.description')} />
           </FormField>
-          <FormField name="achievements" label="成就荣誉">
-            <Select mode="tags" placeholder="输入经历收获后按回车" />
+          <FormField name="achievements" label={t('fields.achievements')}>
+            <Select mode="tags" placeholder={t('fields.achievements')} />
           </FormField>
-          <FormField name="skills" label="技术栈">
-            <Select mode="tags" placeholder="输入技术栈后按回车" />
+          <FormField name="skills" label={t('fields.techStack')}>
+            <Select mode="tags" placeholder={t('fields.techStack')} />
           </FormField>
-          <div className="mb-2 text-sm font-medium">相关链接</div>
+          <div className="mb-2 text-sm font-medium">{t('fields.relatedLinks')}</div>
           <FormList name="links">
             {(fields, { add, remove }) => (
               <div className="space-y-2">
                 {fields.map(field => (
                   <div key={field.key} className="grid items-start gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[1fr_2fr_8rem_auto]">
                     <FormField name={[field.name, 'name']} rules={[{ required: true, message: '请输入名称' }]} className="mb-0">
-                      <Input placeholder="名称" />
+                      <Input placeholder={t('fields.name')} />
                     </FormField>
                     <FormField name={[field.name, 'url']} rules={[{ required: true, message: '请输入链接地址' }]} className="mb-0">
-                      <Input placeholder="链接地址" />
+                      <Input placeholder={t('fields.linkUrl')} />
                     </FormField>
                     <FormField name={[field.name, 'type']} rules={[{ required: true, message: '请选择类型' }]} className="mb-0">
                       <Select options={linkTypeOptions} />
@@ -408,7 +418,7 @@ export default function Timeline() {
                     <Button
                       variant="ghost"
                       className="size-9 px-0 text-destructive hover:bg-destructive/10"
-                      aria-label="删除链接"
+                      aria-label={t('common.delete')}
                       onClick={() => remove(field.name)}
                     >
                       <Trash2 className="size-4" />
@@ -416,7 +426,7 @@ export default function Timeline() {
                   </div>
                 ))}
                 <Button variant="outline" block className="border-dashed" onClick={() => add({ type: 'other' })}>
-                  添加链接
+                  {t('fields.addLink')}
                 </Button>
               </div>
             )}

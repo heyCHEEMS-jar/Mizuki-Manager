@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { Icon } from '@iconify/react'
 import { Code2, ExternalLink, Pencil, Wrench } from 'lucide-react'
 import { CollectionControls } from '../components/CollectionControls'
@@ -76,6 +78,7 @@ const getExperienceText = ({ years, months }: SkillItem['experience']) => {
 }
 
 export default function Skill() {
+  const { t } = useTranslation()
   const form = useForm()
   const [loading, setLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -167,7 +170,12 @@ export default function Skill() {
         const realIndex = items.findIndex(entry => entry.id === collection.pageItems[editingIndex].id)
         if (realIndex !== -1) items[realIndex] = item
       }
-      await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
+      await updateList(
+        items,
+        editingIndex === -1 ? i18n.t('notifications.addSuccess') : i18n.t('notifications.editSuccess'),
+        collection.page,
+        collection.pageSize
+      )
     } catch (err) {
       console.error(err)
     }
@@ -178,7 +186,7 @@ export default function Skill() {
     const removeIds = new Set(collection.selectedItems.map(item => item.id))
     const items = collection.items.filter(item => !removeIds.has(item.id))
     const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
-    await updateList(items, '删除成功', page, collection.pageSize)
+    await updateList(items, i18n.t('notifications.deleteSuccess'), page, collection.pageSize)
   }
 
   useEffect(() => {
@@ -187,23 +195,23 @@ export default function Skill() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Expertise" title="技能管理" description="展示技术栈、熟练程度、经验和相关认证。" />
+      <PageHeader eyebrow="Expertise" title={t('pages.skill.title')} description={t('pages.skill.description')} />
       <CollectionControls
         itemCount={collection.pageItems.length}
         selectedCount={collection.selected.size}
         allSelected={collection.allSelected}
         partiallySelected={collection.partiallySelected}
         loading={loading}
-        addLabel="添加技能"
-        deleteTitle="删除选中的技能？"
-        deleteDescription="所选技能将从展示列表中移除。"
+        addLabel={t('pages.skill.add')}
+        deleteTitle={t('pages.skill.deleteTitle')}
+        deleteDescription={t('fields.deleteSkillDescription')}
         onSelectAll={collection.selectAll}
         onDelete={removeSkills}
         onAdd={() => openEditDialog(undefined, -1)}
       />
 
       {loading && !collection.pageItems.length ? (
-        <PageLoading label="正在加载技能..." />
+        <PageLoading />
       ) : collection.pageItems.length ? (
         <div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
           {collection.pageItems.map((item, index) => {
@@ -243,7 +251,7 @@ export default function Skill() {
                 <p className="mt-4 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">{item.description}</p>
                 <div className="mt-4">
                   <div className="mb-2 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">经验</span>
+                    <span className="text-muted-foreground">{t('fields.experience')}</span>
                     <span>{getExperienceText(item.experience)}</span>
                   </div>
                   <Progress percent={levelMap[item.level].percent} strokeColor={color} format={() => levelMap[item.level].label} />
@@ -271,7 +279,7 @@ export default function Skill() {
       ) : (
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
           <Wrench className="size-10 opacity-40" />
-          <p>快来添加你的第一个技能</p>
+          <p>{t('fields.emptySkill')}</p>
         </div>
       )}
 
@@ -288,62 +296,62 @@ export default function Skill() {
       )}
 
       <Dialog
-        title={editingIndex === -1 ? '新增技能' : '编辑技能'}
+        title={editingIndex === -1 ? t('fields.addSkill') : t('fields.editSkill')}
         open={isDialogOpen}
         onSubmit={throttledSave}
         onCancel={() => setIsDialogOpen(false)}
         width={640}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
         closeOnOutside={false}
       >
         <Form form={form} initialValues={{ category: 'frontend', level: 'beginner', experienceYears: 0, experienceMonths: 0, color: '#1890ff' }}>
           <div className="grid gap-x-4 md:grid-cols-2">
-            <FormField name="name" label="技能名称" rules={[{ required: true }]}>
-              <Input placeholder="例如：React" />
+            <FormField name="name" label={t('fields.skillName')} rules={[{ required: true }]}>
+              <Input placeholder={t('fields.skillName')} />
             </FormField>
-            <FormField name="category" label="技能分类" rules={[{ required: true }]}>
+            <FormField name="category" label={t('fields.skillCategory')} rules={[{ required: true }]}>
               <Select options={categoryOptions} />
             </FormField>
-            <FormField name="level" label="技能等级" rules={[{ required: true }]}>
+            <FormField name="level" label={t('fields.skillLevel')} rules={[{ required: true }]}>
               <Select options={levelOptions} />
             </FormField>
-            <FormField name="color" label="主题颜色">
+            <FormField name="color" label={t('fields.themeColor')}>
               <ColorPicker className="h-9 w-full" />
             </FormField>
           </div>
-          <FormField name="description" label="技能描述" rules={[{ required: true }]}>
-            <Textarea rows={3} placeholder="描述一下技能要点..." />
+          <FormField name="description" label={t('fields.skillDescription')} rules={[{ required: true }]}>
+            <Textarea rows={3} placeholder={t('fields.skillDescription')} />
           </FormField>
           <FormField
             name="icon"
             label={
               <span className="inline-flex items-center gap-2">
-                图标
+                {t('fields.icon')}
                 <a
                   href={process.env.ICONIFY_URL}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                 >
-                  访问 Iconify
+                  {t('fields.visitIconify')}
                   <ExternalLink className="size-3" />
                 </a>
               </span>
             }
             rules={[{ required: true }]}
           >
-            <Input placeholder="例如：logos:javascript" suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : undefined} />
+            <Input placeholder={t('fields.icon')} suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : undefined} />
           </FormField>
           <div className="grid gap-x-4 md:grid-cols-2">
-            <FormField name="experienceYears" label="经验年限" rules={[{ required: true }]}>
-              <NumberInput min={0} max={100} placeholder="年" />
+            <FormField name="experienceYears" label={t('fields.years')} rules={[{ required: true }]}>
+              <NumberInput min={0} max={100} placeholder={t('fields.years')} />
             </FormField>
-            <FormField name="experienceMonths" label="经验月数" rules={[{ required: true }]}>
-              <NumberInput min={0} max={11} placeholder="月" />
+            <FormField name="experienceMonths" label={t('fields.months')} rules={[{ required: true }]}>
+              <NumberInput min={0} max={11} placeholder={t('fields.months')} />
             </FormField>
           </div>
-          <FormField name="certifications" label="奖项证书">
-            <Select mode="tags" placeholder="输入竞赛奖项或证书名称" />
+          <FormField name="certifications" label={t('fields.certificates')}>
+            <Select mode="tags" placeholder={t('fields.certificates')} />
           </FormField>
         </Form>
       </Dialog>

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { Copy, LoaderCircle, Pencil, Plus, RefreshCw, Save, Trash2, Upload as UploadIcon } from 'lucide-react'
 import { Page, PageHeader, PageSection } from '../components/Page'
 import {
@@ -8,6 +10,7 @@ import {
   useFormWatch,
   Input,
   NumberInput,
+  DatePicker,
   Switch,
   Select,
   Button,
@@ -216,14 +219,14 @@ const defaultValues = {
 }
 
 const featurePages = [
-  { name: '番剧', key: 'anime' },
-  { name: '日记', key: 'diary' },
-  { name: '友链', key: 'friends' },
-  { name: '项目', key: 'projects' },
-  { name: '技能', key: 'skills' },
-  { name: '时间线', key: 'timeline' },
-  { name: '相册', key: 'albums' },
-  { name: '设备', key: 'devices' }
+  { name: 'nav.anime', key: 'anime' },
+  { name: 'nav.diary', key: 'diary' },
+  { name: 'nav.friend', key: 'friends' },
+  { name: 'nav.project', key: 'projects' },
+  { name: 'nav.skill', key: 'skills' },
+  { name: 'nav.timeline', key: 'timeline' },
+  { name: 'nav.album', key: 'albums' },
+  { name: 'nav.device', key: 'devices' }
 ]
 
 const CopyText = ({ value, className }: { value: string; className?: string }) => (
@@ -234,8 +237,8 @@ const CopyText = ({ value, className }: { value: string; className?: string }) =
     onClick={() =>
       navigator.clipboard
         .writeText(value)
-        .then(() => notify.success('已复制到剪切板'))
-        .catch(() => notify.error('复制失败'))
+        .then(() => notify.success(i18n.t('notifications.copied')))
+        .catch(() => notify.error(i18n.t('notifications.copyFailed')))
     }
   >
     <span className="truncate">{value}</span>
@@ -258,8 +261,8 @@ const EditableList: React.FC<EditableListProps> = ({
   value = [],
   onChange,
   itemRender,
-  addButtonText = '添加',
-  emptyText = '暂无数据',
+  addButtonText = i18n.t('common.addAction'),
+  emptyText = i18n.t('common.noData'),
   dialogTitle = '编辑项',
   dialogFields
 }) => {
@@ -330,7 +333,7 @@ const EditableList: React.FC<EditableListProps> = ({
                   size="small"
                   className="size-8 px-0"
                   icon={<Pencil className="size-4" />}
-                  aria-label="编辑"
+                  aria-label={i18n.t('common.editAction')}
                   onClick={() => handleEdit(idx)}
                 />
                 <ConfirmDialog
@@ -340,11 +343,11 @@ const EditableList: React.FC<EditableListProps> = ({
                       size="small"
                       className="size-8 px-0 text-destructive hover:bg-destructive/10"
                       icon={<Trash2 className="size-4" />}
-                      aria-label="删除"
+                      aria-label={i18n.t('common.delete')}
                     />
                   }
-                  title="删除此项？"
-                  confirmLabel="删除"
+                  title={i18n.t('fields.deleteItemTitle')}
+                  confirmLabel={i18n.t('common.delete')}
                   variant="destructive"
                   onConfirm={() => handleDelete(idx)}
                 />
@@ -376,7 +379,7 @@ const StringListEditor: React.FC<{
   addText?: string
   imageMode?: boolean
   uploadImage?: (file: File, fileList: File[], onSuccess?: (urls: string[]) => void) => Promise<boolean>
-}> = ({ value = [], onChange, addText = '添加', imageMode = false, uploadImage = async () => false }) => {
+}> = ({ value = [], onChange, addText = i18n.t('common.addAction'), imageMode = false, uploadImage = async () => false }) => {
   const [inputVal, setInputVal] = useState('')
 
   const addItem = () => {
@@ -407,7 +410,7 @@ const StringListEditor: React.FC<{
             <button
               type="button"
               className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              aria-label="移除"
+              aria-label={i18n.t('common.remove')}
               onClick={() => removeItem(index)}
             >
               <Trash2 className="size-3.5" />
@@ -416,11 +419,11 @@ const StringListEditor: React.FC<{
         ))}
       </div>
       <div className="flex w-full flex-col gap-2 sm:flex-row">
-        <Input value={inputVal} onChange={event => setInputVal(event.target.value)} placeholder="输入内容后添加" />
+        <Input value={inputVal} onChange={event => setInputVal(event.target.value)} placeholder={i18n.t('fields.inputToAdd')} />
         {imageMode && (
           <Upload accept={imageAccept} beforeUpload={(file, fileList) => uploadImage(file, fileList, uploadItem)} multiple>
             <Button className="w-full sm:w-auto" icon={<UploadIcon className="size-4" />}>
-              上传
+              {i18n.t('common.upload')}
             </Button>
           </Upload>
         )}
@@ -441,7 +444,7 @@ const settingsSections = (
   // 基础配置
   {
     key: 'basic',
-    label: '基础配置',
+    label: i18n.t('fields.basic'),
 
     children: (
       <div className="grid gap-x-4 md:grid-cols-12">
@@ -467,7 +470,7 @@ const settingsSections = (
   // 站点外观
   {
     key: 'site',
-    label: '站点外观',
+    label: i18n.t('fields.appearance'),
 
     children: (
       <>
@@ -484,7 +487,7 @@ const settingsSections = (
           </div>
           <div className="md:col-span-6">
             <FormField name={['siteConfig', 'siteStartDate']} label="建站日期">
-              <Input placeholder="2026-01-01" />
+              <DatePicker valueFormat="YYYY-MM-DD" />
             </FormField>
           </div>
           <div className="md:col-span-6">
@@ -507,7 +510,7 @@ const settingsSections = (
         <div className="grid gap-x-4 md:grid-cols-12">
           {featurePages.map(f => (
             <div className="md:col-span-3" key={f.key}>
-              <FormField name={['siteConfig', 'featurePages', f.key]} label={f.name} valueKey="checked">
+              <FormField name={['siteConfig', 'featurePages', f.key]} label={i18n.t(f.name)} valueKey="checked">
                 <Switch />
               </FormField>
             </div>
@@ -546,7 +549,7 @@ const settingsSections = (
                     >
                       <Button>
                         <UploadIcon className="size-4" />
-                        <span>上传</span>
+                        <span>{i18n.t('common.upload')}</span>
                       </Button>
                     </Upload>
                   )}
@@ -576,7 +579,7 @@ const settingsSections = (
                     >
                       <Button>
                         <UploadIcon className="size-4" />
-                        <span>上传</span>
+                        <span>{i18n.t('common.upload')}</span>
                       </Button>
                     </Upload>
                   )}
@@ -591,7 +594,7 @@ const settingsSections = (
             </FormField>
           </div>
         </div>
-        <FormField name={['siteConfig', 'showLastModified']} valueKey="checked" label="显示最后修改时间">
+        <FormField name={['siteConfig', 'showLastModified']} valueKey="checked" label="显示最后修改时间" className="mt-4">
           <Switch />
         </FormField>
         <FormField name={['siteConfig', 'generateOgImages']} valueKey="checked" label="生成OpenGraph图片">
@@ -603,7 +606,7 @@ const settingsSections = (
   // 全屏壁纸
   {
     key: 'wallpaper',
-    label: '全屏壁纸',
+    label: i18n.t('fields.wallpaper'),
 
     children: (
       <div className="grid gap-x-4 md:grid-cols-12">
@@ -661,7 +664,7 @@ const settingsSections = (
   // 横幅配置
   {
     key: 'banner',
-    label: '横幅配置',
+    label: i18n.t('fields.banner'),
     children: (
       <>
         {/* 横幅图片 */}
@@ -749,11 +752,11 @@ const settingsSections = (
         </FormField>
 
         <FormField name={['siteConfig', 'banner', 'homeText', 'title']} label="主标题">
-          <Input placeholder="输入主标题" />
+          <Input placeholder={i18n.t('fields.mainTitlePlaceholder')} />
         </FormField>
 
         <FormField label="副标题列表" name={['siteConfig', 'banner', 'homeText', 'subtitle']}>
-          <StringListEditor addText="添加" />
+          <StringListEditor addText={i18n.t('common.addAction')} />
         </FormField>
 
         {/* 打字机效果 */}
@@ -801,24 +804,24 @@ const settingsSections = (
   // 导航链接配置
   {
     key: 'navbar',
-    label: '导航链接',
+    label: i18n.t('fields.navigation'),
     children: (
       <FormField name={['navBarConfig', 'links', 2, 'children']}>
         <EditableList
-          addButtonText="添加导航链接"
-          dialogTitle="编辑导航链接"
+          addButtonText={i18n.t('fields.addNavigation')}
+          dialogTitle={i18n.t('fields.editNavigation')}
           dialogFields={(_, iconValue) => (
             <>
               <FormField name="name" label="名称" rules={[{ required: true }]}>
-                <Input placeholder="请输入名称" />
+                <Input placeholder={i18n.t('fields.name')} />
               </FormField>
               <FormField
                 name="icon"
                 label={
                   <>
-                    <span>图标</span>
+                    <span>{i18n.t('fields.icon')}</span>
                     <a href={process.env.ICONIFY_URL} target="_blank" rel="noreferrer">
-                      &nbsp;访问 iconify
+                      &nbsp;{i18n.t('fields.visitIconify')}
                     </a>
                   </>
                 }
@@ -826,7 +829,7 @@ const settingsSections = (
                 <Input placeholder="例如: mdi:github" suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : <span />} />
               </FormField>
               <FormField name="url" label="链接" rules={[{ required: true }]}>
-                <Input placeholder="请输入链接" />
+                <Input placeholder={i18n.t('fields.linkUrl')} />
               </FormField>
               <FormField name="external" label="外部链接" valueKey="checked">
                 <Switch />
@@ -838,7 +841,7 @@ const settingsSections = (
               <Badge>{item.name}</Badge>
               {item.icon && <Icon icon={item.icon} width={20} />}
               <CopyText value={item.url} className="min-w-0" />
-              {item.external && <Badge>外链</Badge>}
+              {item.external && <Badge>{i18n.t('fields.external')}</Badge>}
             </div>
           )}
         />
@@ -848,7 +851,7 @@ const settingsSections = (
   // 个人资料
   {
     key: 'profile',
-    label: '个人资料',
+    label: i18n.t('fields.profile'),
     children: (
       <>
         <FormField label="头像路径" className="mb-2">
@@ -865,7 +868,7 @@ const settingsSections = (
                 >
                   <Button>
                     <UploadIcon className="size-4" />
-                    <span>上传</span>
+                    <span>{i18n.t('common.upload')}</span>
                   </Button>
                 </Upload>
               )}
@@ -878,7 +881,7 @@ const settingsSections = (
             return <Image loading="lazy" width="100%" height={80} className="object-contain" src={url} alt={url} />
           }}
         </FormField>
-        <FormField name={['profileConfig', 'name']} label="昵称">
+        <FormField name={['profileConfig', 'name']} label="昵称" className="mt-4">
           <Input />
         </FormField>
         <FormField name={['profileConfig', 'bio']} label="简介">
@@ -892,20 +895,20 @@ const settingsSections = (
         </FormField>
         <FormField name={['profileConfig', 'links']} label="社交链接">
           <EditableList
-            addButtonText="添加链接"
-            dialogTitle="编辑社交链接"
+            addButtonText={i18n.t('fields.addLink')}
+            dialogTitle={i18n.t('fields.editSocial')}
             dialogFields={(_, iconValue) => (
               <>
                 <FormField name="name" label="名称" rules={[{ required: true }]}>
-                  <Input placeholder="请输入名称" />
+                  <Input placeholder={i18n.t('fields.name')} />
                 </FormField>
                 <FormField
                   name="icon"
                   label={
                     <>
-                      <span>图标</span>
+                      <span>{i18n.t('fields.icon')}</span>
                       <a href={process.env.ICONIFY_URL} target="_blank" rel="noreferrer">
-                        &nbsp;访问 iconify
+                        &nbsp;{i18n.t('fields.visitIconify')}
                       </a>
                     </>
                   }
@@ -914,7 +917,7 @@ const settingsSections = (
                   <Input placeholder="例如: fa7-brands:github" suffix={iconValue ? <Icon icon={iconValue} width={20} height={20} /> : <span />} />
                 </FormField>
                 <FormField name="url" label="链接" rules={[{ required: true }]}>
-                  <Input placeholder="请输入链接" />
+                  <Input placeholder={i18n.t('fields.linkUrl')} />
                 </FormField>
               </>
             )}
@@ -937,7 +940,7 @@ const settingsSections = (
   // 音乐播放器
   {
     key: 'music',
-    label: '音乐播放器',
+    label: i18n.t('fields.musicPlayer'),
 
     children: (
       <>
@@ -981,7 +984,7 @@ const settingsSections = (
   // 评论配置
   {
     key: 'comment',
-    label: '评论配置',
+    label: i18n.t('fields.comments'),
 
     children: (
       <>
@@ -1093,7 +1096,7 @@ const settingsSections = (
   // 樱花特效
   {
     key: 'sakura',
-    label: '樱花特效',
+    label: i18n.t('fields.sakura'),
 
     children: (
       <>
@@ -1184,7 +1187,7 @@ const settingsSections = (
   // 看板娘
   {
     key: 'pio',
-    label: '看板娘',
+    label: i18n.t('fields.live2d'),
 
     children: (
       <>
@@ -1254,12 +1257,12 @@ const settingsSections = (
           </div>
           <div className="md:col-span-12">
             <FormField name={['pioConfig', 'dialog', 'touch']} label="触摸提示">
-              <StringListEditor addText="添加提示" />
+              <StringListEditor addText={i18n.t('fields.addPrompt')} />
             </FormField>
           </div>
           <div className="md:col-span-12">
             <FormField name={['pioConfig', 'dialog', 'skin']} label="换装提示">
-              <StringListEditor addText="添加提示" />
+              <StringListEditor addText={i18n.t('fields.addPrompt')} />
             </FormField>
           </div>
         </div>
@@ -1269,7 +1272,7 @@ const settingsSections = (
   // 其他
   {
     key: 'other',
-    label: '其他',
+    label: i18n.t('fields.other'),
 
     children: (
       <>
@@ -1288,7 +1291,7 @@ const settingsSections = (
         {/* 公告配置 */}
         <Divider orientation="horizontal">公告配置</Divider>
         <FormField name={['announcementConfig', 'title']} label="公告标题">
-          <Input placeholder="留空使用默认标题" />
+          <Input placeholder={i18n.t('fields.defaultAnnouncementTitle')} />
         </FormField>
         <FormField name={['announcementConfig', 'content']} label="公告内容">
           <Textarea rows={5} />
@@ -1300,7 +1303,7 @@ const settingsSections = (
           <Switch />
         </FormField>
         <FormField name={['announcementConfig', 'link', 'text']} label="链接文本">
-          <Input placeholder="了解更多" />
+          <Input placeholder={i18n.t('fields.learnMore')} />
         </FormField>
         <FormField name={['announcementConfig', 'link', 'url']} label="链接地址">
           <Input placeholder="/about/" />
@@ -1332,6 +1335,7 @@ const settingsSections = (
 ]
 
 export default function Config() {
+  const { t } = useTranslation()
   const form = useForm()
   const [loading, setLoading] = useState(false)
   const [showReload, setShowReload] = useState(false)
@@ -1350,7 +1354,7 @@ export default function Config() {
         // 解包value给表单
         const unwrappedData = unwrap(res.data, 'value')
         form.setValues(unwrappedData)
-      } else notify.error('配置数据无效')
+      } else notify.error(i18n.t('notifications.invalidConfig'))
     } catch {
     } finally {
       setLoading(false)
@@ -1362,7 +1366,7 @@ export default function Config() {
     await getConfig()
     await db.clearCache('latest')
     setShowReload(false)
-    notify.info('已重载为最新配置')
+    notify.info(i18n.t('notifications.configReloaded'))
   }, [getConfig])
 
   // 保存
@@ -1377,7 +1381,7 @@ export default function Config() {
       const res = await writeConfigData(finalData)
       originalData.current = finalData
       if (res.success) {
-        notify.success('保存成功')
+        notify.success(i18n.t('notifications.saveSuccess'))
         await db.clearCache('latest')
         await db.saveCache('original_data', JSON.stringify(finalData))
         setShowReload(false)
@@ -1405,7 +1409,7 @@ export default function Config() {
         setLoading(true)
         const res = await uploadFunc(file, fileList)
         if (res.success) {
-          notify.success('上传成功')
+          notify.success(i18n.t('notifications.uploadSuccess'))
           return res
         }
       } catch {
@@ -1479,23 +1483,23 @@ export default function Config() {
     <Page className="max-w-5xl">
       <PageHeader
         eyebrow="Site settings"
-        title="配置管理"
-        description="集中维护站点基础信息、外观、导航、内容功能与交互设置。修改会自动保存为本地草稿。"
+        title={t('pages.config.title')}
+        description={t('pages.config.description')}
         actions={
           showReload ? (
             <>
               <ConfirmDialog
                 trigger={
                   <Button icon={<RefreshCw className="size-4" />} loading={loading}>
-                    重载配置
+                    {t('fields.reloadConfig')}
                   </Button>
                 }
-                title="放弃当前配置草稿？"
-                description="未保存的本地修改将被服务器上的最新配置替换。"
+                title={t('fields.abandonConfigTitle')}
+                description={t('fields.abandonConfigDescription')}
                 onConfirm={reloadContent}
               />
               <Button variant="default" icon={<Save className="size-4" />} loading={loading} onClick={throttledSave}>
-                保存配置
+                {t('fields.saveConfig')}
               </Button>
             </>
           ) : null
@@ -1503,8 +1507,8 @@ export default function Config() {
       />
 
       <PageSection
-        title="配置项"
-        description={showReload ? '本地草稿尚未同步到服务器' : '当前配置已与服务器同步'}
+        title={t('fields.configItems')}
+        description={showReload ? t('fields.draftUnsynced') : t('fields.configSynced')}
         bodyClassName="relative p-4 sm:p-5"
       >
         <Form form={form} onValuesChange={() => debouncedSaveDraft(form.getValues())} initialValues={defaultValues}>

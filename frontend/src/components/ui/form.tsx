@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useSyncExternalStore } from 'react'
 import { cn } from '@/lib/utils'
+import i18n from '@/i18n'
 
 type NamePath = string | number | Array<string | number>
 type Rule = {
@@ -120,12 +121,17 @@ const createFormInstance = (): FormInstance => {
       errors.clear()
       for (const field of fields.values()) {
         const value = getAtPath(values, field.name)
+        if (typeof value?.isValid === 'function' && !value.isValid()) {
+          errors.set(pathKey(field.name), i18n.t('common.invalidDate'))
+          continue
+        }
         for (const rule of field.rules) {
           try {
-            if (rule.required && isEmpty(value)) throw new Error(rule.message || `${field.label || '该字段'}不能为空`)
+            if (rule.required && isEmpty(value))
+              throw new Error(rule.message || i18n.t('common.required', { field: field.label || i18n.t('common.field') }))
             await rule.validator?.(rule, value)
           } catch (error: any) {
-            errors.set(pathKey(field.name), error?.message || rule.message || '字段校验失败')
+            errors.set(pathKey(field.name), error?.message || rule.message || i18n.t('common.validationFailed'))
             break
           }
         }
@@ -209,12 +215,13 @@ export const FormField = ({ name, label, rules = [], valueKey = 'value', unstyle
   const listPath = useContext(ListContext)
   if (!form) throw new Error('FormField 必须在 Form 内使用')
   const fieldName = name === undefined ? undefined : [...listPath, ...toPath(name)]
+  const translatedLabel = typeof label === 'string' ? i18n.t(`labels.${label}`, { defaultValue: label }) : label
   useSyncExternalStore(form.subscribe, form.getVersion, form.getVersion)
 
   useEffect(() => {
     if (fieldName === undefined) return
-    return form.registerField(fieldName, rules, label)
-  }, [form, pathKey(fieldName ?? ''), rules, label])
+    return form.registerField(fieldName, rules, translatedLabel)
+  }, [form, pathKey(fieldName ?? ''), rules, translatedLabel])
 
   if (typeof children === 'function') return <>{children(form)}</>
 
@@ -239,7 +246,7 @@ export const FormField = ({ name, label, rules = [], valueKey = 'value', unstyle
 
   return (
     <div className={cn('mb-4 grid gap-2', className)} {...props}>
-      {label !== undefined && <label className="text-sm font-medium leading-none">{label}</label>}
+      {translatedLabel !== undefined && <label className="text-sm font-medium leading-none">{translatedLabel}</label>}
       {content}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>

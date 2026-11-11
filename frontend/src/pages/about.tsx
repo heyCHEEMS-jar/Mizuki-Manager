@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import MDEditor from '@uiw/react-md-editor'
 import { FileUp, Info, LoaderCircle, RefreshCw, Save } from 'lucide-react'
 import { Page, PageHeader, PageSection } from '../components/Page'
@@ -9,6 +11,7 @@ import { getAboutContent, replaceAboutFile, updateAboutContent } from '../servic
 import { debounce, throttle } from '../utils/util'
 
 export default function About() {
+  const { t } = useTranslation()
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
   const [showReload, setShowReload] = useState(false)
@@ -49,7 +52,7 @@ export default function About() {
       setLoading(true)
       const res = await updateAboutContent(content)
       if (res.success) {
-        notify.success('保存成功')
+        notify.success(i18n.t('notifications.saveSuccess'))
         await reloadContent()
       }
     } catch {
@@ -65,7 +68,7 @@ export default function About() {
       setLoading(true)
       const res = await replaceAboutFile(file)
       if (res.success) {
-        notify.success('替换成功')
+        notify.success(i18n.t('notifications.replaceSuccess'))
         await reloadContent()
       }
     } catch {
@@ -85,29 +88,29 @@ export default function About() {
     <Page>
       <PageHeader
         eyebrow="Content"
-        title="关于页面"
-        description="编辑网站关于页面使用的 Markdown 文档。输入内容会自动保存为本地草稿。"
+        title={t('pages.about.title')}
+        description={t('pages.about.description')}
         actions={
           <>
             <Upload beforeUpload={handleReplace} accept=".md" disabled={loading}>
               <Button icon={<FileUp className="size-4" />} disabled={loading}>
-                上传文档
+                {t('pages.about.add')}
               </Button>
             </Upload>
             {showReload && (
               <ConfirmDialog
                 trigger={
                   <Button icon={<RefreshCw className="size-4" />} disabled={loading}>
-                    重载内容
+                    {t('fields.reloadContent')}
                   </Button>
                 }
-                title="放弃当前草稿？"
-                description="当前本地草稿将被服务器上的文档替换。"
+                title={t('fields.abandonDraftTitle')}
+                description={t('fields.abandonDraftDescription')}
                 onConfirm={reloadContent}
               />
             )}
             <Button variant="default" icon={<Save className="size-4" />} loading={loading} onClick={throttledUpdate}>
-              保存
+              {t('common.save')}
             </Button>
           </>
         }
@@ -117,10 +120,10 @@ export default function About() {
         title={
           <span className="flex items-center gap-2">
             <Info className="size-4 text-primary" />
-            Markdown 文档
+            {t('fields.markdownDocument')}
           </span>
         }
-        description={showReload ? '本地草稿尚未同步到服务器' : '当前内容已与服务器同步'}
+        description={showReload ? t('fields.draftUnsynced') : t('fields.synced')}
         bodyClassName="relative p-0"
       >
         <MDEditor
@@ -132,7 +135,7 @@ export default function About() {
           }}
           preview="live"
           visibleDragbar
-          placeholder="输入关于内容"
+          placeholder={t('pages.about.title')}
           disabled={loading}
           height="calc(100vh - 18rem)"
           minHeight={420}

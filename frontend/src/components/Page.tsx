@@ -1,5 +1,6 @@
 import React from 'react'
 import { LoaderCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 export const Page = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -46,9 +47,12 @@ export const PageSection = ({ title, description, actions, bodyClassName, classN
   </section>
 )
 
-export const PageLoading = ({ label = '加载中...' }: { label?: string }) => (
-  <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-    <LoaderCircle className="size-6 animate-spin text-primary" />
-    <span>{label}</span>
-  </div>
-)
+export const PageLoading = ({ label }: { label?: string }) => {
+  const { t } = useTranslation()
+  return (
+    <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+      <LoaderCircle className="size-6 animate-spin text-primary" />
+      <span>{label || t('common.loading')}</span>
+    </div>
+  )
+}
