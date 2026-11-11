@@ -1,4 +1,5 @@
 import { notify as message } from '../lib/notify'
+import i18n from '../i18n'
 import { redirectToLogin } from './util'
 
 type MethodType = 'GET' | 'POST' | 'PUT' | 'DELETE'
@@ -127,7 +128,7 @@ const NO_MESSAGE_CODE = [601, SESSION_CONFLICT_CODE]
 function _handleError(err: any) {
   if (!NO_MESSAGE_CODE.includes(err.code)) {
     console.error(err)
-    message.error(err.message || '请求失败')
+    message.error(err.message || i18n.t('notifications.requestFailed'))
   }
 }
 

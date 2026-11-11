@@ -5,11 +5,12 @@ import * as ProgressPrimitive from '@radix-ui/react-progress'
 import { ImageOff, RotateCcw, User, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { Toaster as SonnerToaster } from 'sonner'
 import { cn } from '@/lib/utils'
+import i18n from '@/i18n'
 
 export const Toaster = () => <SonnerToaster richColors position="top-center" closeButton />
 
 const EmptyRoot = ({
-  description = '暂无数据',
+  description = i18n.t('common.noData'),
   className,
   image: _image
 }: {
@@ -42,7 +43,7 @@ export const Badge = ({
   >
     {children}
     {closable && (
-      <button type="button" className="ml-0.5 opacity-60 hover:opacity-100" aria-label="移除" onClick={onClose}>
+      <button type="button" className="ml-0.5 opacity-60 hover:opacity-100" aria-label={i18n.t('common.remove')} onClick={onClose}>
         ×
       </button>
     )}
@@ -111,7 +112,7 @@ const ZoomablePreview = ({ src, alt }: { src?: string; alt?: string }) => {
       <div className="absolute inset-x-0 bottom-16 top-0 flex items-center justify-center overflow-hidden">
         <img
           src={src}
-          alt={alt || '预览图片'}
+          alt={alt || i18n.t('common.previewImage')}
           draggable={false}
           className={cn('max-h-full max-w-full select-none object-contain', scale > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in')}
           style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`, touchAction: 'none' }}
@@ -134,7 +135,7 @@ const ZoomablePreview = ({ src, alt }: { src?: string; alt?: string }) => {
           type="button"
           className="rounded-full p-2 hover:bg-white/15 disabled:opacity-40"
           disabled={scale <= MIN_PREVIEW_SCALE}
-          aria-label="缩小图片"
+          aria-label={i18n.t('common.zoomOut')}
           onClick={() => changeScale(-PREVIEW_SCALE_STEP)}
         >
           <ZoomOut className="size-4" />
@@ -144,12 +145,12 @@ const ZoomablePreview = ({ src, alt }: { src?: string; alt?: string }) => {
           type="button"
           className="rounded-full p-2 hover:bg-white/15 disabled:opacity-40"
           disabled={scale >= MAX_PREVIEW_SCALE}
-          aria-label="放大图片"
+          aria-label={i18n.t('common.zoomIn')}
           onClick={() => changeScale(PREVIEW_SCALE_STEP)}
         >
           <ZoomIn className="size-4" />
         </button>
-        <button type="button" className="rounded-full p-2 hover:bg-white/15" aria-label="还原图片" onClick={reset}>
+        <button type="button" className="rounded-full p-2 hover:bg-white/15" aria-label={i18n.t('common.resetImage')} onClick={reset}>
           <RotateCcw className="size-4" />
         </button>
       </div>
@@ -186,10 +187,13 @@ export const Image = ({ width, height, className, style, preview = true, onClick
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="fixed inset-0 z-1200 bg-black/80" />
           <DialogPrimitive.Content className="fixed inset-4 z-1201 grid place-items-center outline-none">
-            <DialogPrimitive.Title className="sr-only">图片预览</DialogPrimitive.Title>
-            <DialogPrimitive.Description className="sr-only">查看原始图片</DialogPrimitive.Description>
+            <DialogPrimitive.Title className="sr-only">{i18n.t('common.imagePreview')}</DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">{i18n.t('common.viewOriginal')}</DialogPrimitive.Description>
             <ZoomablePreview src={props.src} alt={props.alt} />
-            <DialogPrimitive.Close className="fixed right-5 top-5 rounded-full bg-black/60 p-2 text-white hover:bg-black/80" aria-label="关闭预览">
+            <DialogPrimitive.Close
+              className="fixed right-5 top-5 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+              aria-label={i18n.t('common.closePreview')}
+            >
               <X className="size-5" />
             </DialogPrimitive.Close>
           </DialogPrimitive.Content>

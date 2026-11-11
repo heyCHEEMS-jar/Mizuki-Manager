@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { Box, ExternalLink, FileUp, Pencil } from 'lucide-react'
 import { CollectionControls } from '../components/CollectionControls'
 import { Page, PageHeader, PageLoading } from '../components/Page'
@@ -26,6 +28,7 @@ interface DeviceData {
 const DEFAULT_CATEGORY = 'Other'
 
 export default function Device() {
+  const { t } = useTranslation()
   const form = useForm()
   const [loading, setLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -94,7 +97,12 @@ export default function Device() {
         const realIndex = items.indexOf(collection.pageItems[editingIndex])
         if (realIndex !== -1) items[realIndex] = values
       }
-      await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
+      await updateList(
+        items,
+        editingIndex === -1 ? i18n.t('notifications.addSuccess') : i18n.t('notifications.editSuccess'),
+        collection.page,
+        collection.pageSize
+      )
     } catch (err) {
       console.error(err)
     }
@@ -106,7 +114,7 @@ export default function Device() {
       setLoading(true)
       const res = await uploadDeviceImages([file])
       if (res.success) {
-        notify.success('上传成功')
+        notify.success(i18n.t('notifications.uploadSuccess'))
         form.setValues({ image: res.data?.[0]?.publicPath || '' })
       }
     } catch {
@@ -120,7 +128,7 @@ export default function Device() {
     const removeItems = new Set(collection.selectedItems)
     const items = collection.items.filter(item => !removeItems.has(item))
     const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
-    await updateList(items, '删除成功', page, collection.pageSize)
+    await updateList(items, i18n.t('notifications.deleteSuccess'), page, collection.pageSize)
   }
 
   useEffect(() => {
@@ -129,23 +137,23 @@ export default function Device() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Inventory" title="设备清单" description="管理数码设备、规格信息与产品链接。" />
+      <PageHeader eyebrow="Inventory" title={t('pages.device.title')} description={t('pages.device.description')} />
       <CollectionControls
         itemCount={collection.pageItems.length}
         selectedCount={collection.selected.size}
         allSelected={collection.allSelected}
         partiallySelected={collection.partiallySelected}
         loading={loading}
-        addLabel="添加设备"
-        deleteTitle="删除选中的设备？"
-        deleteDescription="所选设备将从配置中移除。"
+        addLabel={t('pages.device.add')}
+        deleteTitle={t('pages.device.deleteTitle')}
+        deleteDescription={t('fields.deleteDeviceDescription')}
         onSelectAll={collection.selectAll}
         onDelete={removeDevices}
         onAdd={() => openEditDialog(undefined, -1)}
       />
 
       {loading && !collection.pageItems.length ? (
-        <PageLoading label="正在加载设备..." />
+        <PageLoading />
       ) : collection.pageItems.length ? (
         <div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
           {collection.pageItems.map((item, index) => {
@@ -217,7 +225,7 @@ export default function Device() {
       ) : (
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
           <Box className="size-10 opacity-40" />
-          <p>暂无设备数据</p>
+          <p>{t('fields.emptyDevice')}</p>
         </div>
       )}
 
@@ -234,42 +242,42 @@ export default function Device() {
       )}
 
       <Dialog
-        title={editingIndex === -1 ? '添加设备' : '编辑设备'}
+        title={editingIndex === -1 ? t('fields.addDevice') : t('fields.editDevice')}
         open={isDialogOpen}
         onSubmit={throttledSave}
         onCancel={() => setIsDialogOpen(false)}
         width={640}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
         closeOnOutside={false}
       >
         <Form form={form}>
           <div className="grid gap-x-4 md:grid-cols-3">
-            <FormField name="name" label="设备名称" rules={[{ required: true }]} className="md:col-span-2">
-              <Input placeholder="输入设备名称" />
+            <FormField name="name" label={t('fields.deviceName')} rules={[{ required: true }]} className="md:col-span-2">
+              <Input placeholder={t('fields.deviceName')} />
             </FormField>
-            <FormField name="category" label={`分类（默认 ${DEFAULT_CATEGORY}）`}>
-              <Input placeholder="如：OnePlus" />
+            <FormField name="category" label={t('fields.category', { category: DEFAULT_CATEGORY })}>
+              <Input placeholder={t('fields.categoryName')} />
             </FormField>
           </div>
-          <FormField name="specs" label="规格配置" rules={[{ required: true }]}>
-            <Input placeholder="如：Gray / 16G + 1TB" />
+          <FormField name="specs" label={t('fields.specs')} rules={[{ required: true }]}>
+            <Input placeholder={t('fields.specs')} />
           </FormField>
           <div className="flex items-start gap-3">
-            <FormField name="image" label="设备图片" rules={[{ required: true }]} className="min-w-0 flex-1">
-              <Input placeholder="输入图片外链" />
+            <FormField name="image" label={t('fields.deviceImage')} rules={[{ required: true }]} className="min-w-0 flex-1">
+              <Input placeholder={t('fields.imageUrl')} />
             </FormField>
             <Upload beforeUpload={uploadCover} accept={imageAccept} disabled={loading}>
               <Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>
-                上传
+                {t('common.upload')}
               </Button>
             </Upload>
           </div>
-          {imageValue && <Image src={imageValue} alt="设备图片预览" className="mb-4 h-24 w-full rounded-lg border object-contain" />}
-          <FormField name="link" label="产品链接" rules={[{ required: true }]}>
-            <Input prefix={<ExternalLink className="size-4" />} placeholder="输入跳转外链" />
+          {imageValue && <Image src={imageValue} alt={t('fields.devicePreview')} className="mb-4 h-24 w-full rounded-lg border object-contain" />}
+          <FormField name="link" label={t('fields.productLink')} rules={[{ required: true }]}>
+            <Input prefix={<ExternalLink className="size-4" />} placeholder={t('fields.productLink')} />
           </FormField>
-          <FormField name="description" label="详细描述" rules={[{ required: true }]}>
-            <Textarea placeholder="输入详细描述" rows={3} />
+          <FormField name="description" label={t('fields.details')} rules={[{ required: true }]}>
+            <Textarea placeholder={t('fields.details')} rows={3} />
           </FormField>
         </Form>
       </Dialog>

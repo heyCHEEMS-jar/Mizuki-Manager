@@ -1,4 +1,5 @@
 import { logout } from '../services/auth'
+import i18n from '../i18n'
 
 // 防抖
 export const debounce = <T extends (...arg: any[]) => any>(func: T, delay: number, options?: { immediate?: boolean }) => {
@@ -164,18 +165,16 @@ export const formatUptime = (seconds?: number) => {
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  return `${days} 天 ${hours} 小时 ${minutes} 分`
+  const gap = i18n.resolvedLanguage === 'en' ? ' ' : ''
+  return `${days}${gap}${i18n.t('time.day', { count: days })} ${hours}${gap}${i18n.t('time.hour', { count: hours })} ${minutes}${gap}${i18n.t('time.minute', { count: minutes })}`
 }
 
 // 格式化时间显示格式
 export const formatTimeDisplay = (date: string): string => {
   if (!date) return '-'
-  const endChar = date.charAt(date.length - 1).toLowerCase()
-  if (endChar === 'y') return `${date.slice(0, -1)}年`
-  if (endChar === 'w') return `${date.slice(0, -1)}周`
-  if (endChar === 'd') return `${date.slice(0, -1)}天`
-  if (endChar === 'h') return `${date.slice(0, -1)}小时`
-  if (endChar === 'm') return `${date.slice(0, -1)}分钟`
-  if (endChar === 's') return `${date.slice(0, -1)}秒`
-  return date
+  const value = date.slice(0, -1)
+  const units: Record<string, string> = { y: 'year', w: 'week', d: 'day', h: 'hour', m: 'minute', s: 'second' }
+  const unit = units[date.at(-1)?.toLowerCase() || '']
+  const gap = i18n.resolvedLanguage === 'en' ? ' ' : ''
+  return unit ? `${value}${gap}${i18n.t(`time.${unit}`, { count: Number(value) })}` : date
 }

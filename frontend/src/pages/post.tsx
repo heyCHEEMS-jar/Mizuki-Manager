@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import MDEditor from '@uiw/react-md-editor'
 import { ArrowLeft, Edit3, ExternalLink, Eye, FilePlus2, FileText, FileUp, LoaderCircle, RefreshCw, Save, Search, Trash2 } from 'lucide-react'
 import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
@@ -58,7 +60,7 @@ function PostList() {
       setLoading(true)
       const res = await deletePost(filename)
       if (res.success) {
-        notify.success('删除成功')
+        notify.success(i18n.t('notifications.deleteSuccess'))
         const remainTotal = res.data?.total || 0
         const newPageNum = Math.min(Math.max(1, Math.ceil(remainTotal / pageSize)), pageNum)
         setPageNum(newPageNum)
@@ -75,7 +77,7 @@ function PostList() {
       setLoading(true)
       const res = await uploadPostFile(file)
       if (res.success) {
-        notify.success('上传成功')
+        notify.success(i18n.t('notifications.uploadSuccess'))
         await getPosts(pageNum, pageSize)
       }
     } catch {
@@ -104,17 +106,17 @@ function PostList() {
     <Page>
       <PageHeader
         eyebrow="Content"
-        title="文章管理"
-        description="创建、上传和维护博客 Markdown 文章。"
+        title={i18n.t('pages.post.title')}
+        description={i18n.t('pages.post.description')}
         actions={
           <>
             <Upload beforeUpload={uploadPost} accept=".md" disabled={loading}>
               <Button icon={<FileUp className="size-4" />} disabled={loading}>
-                上传文章
+                {i18n.t('pages.post.add')}
               </Button>
             </Upload>
             <Button variant="default" icon={<FilePlus2 className="size-4" />} disabled={loading} onClick={() => navigate('/post/edit/new')}>
-              新建文章
+              {i18n.t('common.newPost')}
             </Button>
           </>
         }
@@ -126,7 +128,7 @@ function PostList() {
             value={keyword}
             onChange={event => setKeyword(event.target.value)}
             prefix={<Search className="size-4" />}
-            placeholder="搜索当前页文章"
+            placeholder={i18n.t('fields.searchPosts')}
             allowClear
             className="max-w-sm"
           />
@@ -149,7 +151,7 @@ function PostList() {
                     variant="ghost"
                     size="small"
                     className="size-8 px-0"
-                    title="编辑"
+                    title={i18n.t('common.editAction')}
                     aria-label={`编辑 ${filename}`}
                     onClick={() => navigate(`/post/edit/${filename}`)}
                   >
@@ -159,7 +161,7 @@ function PostList() {
                     variant="ghost"
                     size="small"
                     className="hidden size-8 px-0 sm:inline-flex"
-                    title="查看"
+                    title={i18n.t('common.view')}
                     aria-label={`查看 ${filename}`}
                     onClick={() => navigate(`/post/view/${filename}`)}
                   >
@@ -171,15 +173,15 @@ function PostList() {
                         variant="ghost"
                         size="small"
                         className="size-8 px-0 text-destructive hover:bg-destructive/10"
-                        title="删除"
+                        title={i18n.t('common.delete')}
                         aria-label={`删除 ${filename}`}
                       >
                         <Trash2 className="size-4" />
                       </Button>
                     }
-                    title="删除文章？"
+                    title={i18n.t('fields.deletePostTitle')}
                     description={`“${filename}”删除后无法恢复。`}
-                    confirmLabel="删除"
+                    confirmLabel={i18n.t('common.delete')}
                     variant="destructive"
                     onConfirm={() => removePost(filename)}
                   />
@@ -202,7 +204,7 @@ function PostList() {
             pageSizeOptions={[12, 24]}
             showSizeChanger
             showQuickJumper
-            showTotal={total => <span className="mr-2 text-xs text-muted-foreground">共 {total} 篇</span>}
+            showTotal={total => <span className="mr-2 text-xs text-muted-foreground">{i18n.t('fields.postTotal', { count: total })}</span>}
             onChange={onPageChange}
           />
         </div>
@@ -216,6 +218,7 @@ interface PostEditorProps {
 }
 
 function PostEditor({ isEditing = false }: PostEditorProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { filename = 'new' } = useParams()
   const [content, setContent] = useState(POST_FRONT_MATTER)
@@ -281,13 +284,13 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
           const createdFilename = res.data?.filename
           if (!createdFilename) throw new Error('未从响应中获取到创建的文件名')
           updateEditFilename(createdFilename)
-          notify.success('创建成功')
+          notify.success(i18n.t('notifications.createSuccess'))
         }
       } else {
         const res = await updatePost(filenameRef.current, content)
         if (res.success) {
           await db.clearCache(cacheKeyRef.current)
-          notify.success('保存成功')
+          notify.success(i18n.t('notifications.saveSuccess'))
         }
       }
       setShowReload(false)
@@ -311,7 +314,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
       const newName = prompt('输入新名称')
       if (newName === null) return
       if (!newName.trim()) {
-        notify.warning('新名称不能为空')
+        notify.warning(i18n.t('notifications.nameRequired'))
         return
       }
       const res = await renamePost(filenameRef.current, newName.trim())
@@ -319,7 +322,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
         const renamedFilename = res.data?.filename
         if (!renamedFilename) throw new Error('未从响应中获取到重命名后的新文件名')
         updateEditFilename(renamedFilename)
-        notify.success('重命名成功')
+        notify.success(i18n.t('notifications.renameSuccess'))
       }
     } catch {
     } finally {
@@ -351,7 +354,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
     })
   }, [])
 
-  const pageTitle = isNewRef.current ? '新建文章' : `${isEditingRef.current ? '编辑' : '查看'}文章`
+  const pageTitle = isNewRef.current ? t('fields.newPost') : isEditingRef.current ? t('fields.editPost') : t('fields.viewPost')
 
   return (
     <Page>
@@ -362,7 +365,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
         actions={
           <>
             <Button icon={<ArrowLeft className="size-4" />} onClick={() => navigate('/post')}>
-              返回列表
+              {i18n.t('common.back')}
             </Button>
             {isEditingRef.current && (
               <>
@@ -372,12 +375,12 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
                   rel="noreferrer"
                   className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm text-primary hover:bg-primary/10"
                 >
-                  编写帮助
+                  {t('fields.writingHelp')}
                   <ExternalLink className="size-3.5" />
                 </a>
                 {!isNewRef.current && (
                   <Button disabled={loading} onClick={handleRename}>
-                    重命名
+                    {i18n.t('common.rename')}
                   </Button>
                 )}
                 {showReload && (
@@ -388,12 +391,12 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
                       </Button>
                     }
                     title={isNewRef.current ? '恢复默认内容？' : '重载服务器内容？'}
-                    description="当前本地草稿将被覆盖。"
+                    description={t('fields.draftOverwrite')}
                     onConfirm={reloadContent}
                   />
                 )}
                 <Button variant="default" icon={<Save className="size-4" />} loading={loading} onClick={throttledSave}>
-                  保存
+                  {i18n.t('common.save')}
                 </Button>
               </>
             )}
@@ -402,7 +405,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
       />
 
       <PageSection
-        title="Markdown 文档"
+        title={t('fields.markdownDocument')}
         description={isEditingRef.current && showReload ? '本地草稿尚未同步到服务器' : filenameRef.current}
         bodyClassName="relative p-0"
       >

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import { Code2, FileUp, FolderKanban, FolderGit2, Image as ImageIcon, Pencil, Rocket, Star } from 'lucide-react'
 import { CollectionControls } from '../components/CollectionControls'
@@ -64,6 +66,7 @@ const statusStyle = {
 }
 
 export default function Project() {
+  const { t } = useTranslation()
   const form = useForm()
   const [loading, setLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -122,7 +125,7 @@ export default function Project() {
       setLoading(true)
       const res = await uploadProjectImages([file])
       if (res.success) {
-        notify.success('上传成功')
+        notify.success(i18n.t('notifications.uploadSuccess'))
         form.setValues({ image: res.data?.[0]?.publicPath || '' })
       }
     } catch {
@@ -149,7 +152,12 @@ export default function Project() {
         const realIndex = items.findIndex(entry => entry.id === collection.pageItems[editingIndex].id)
         if (realIndex !== -1) items[realIndex] = item
       }
-      await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
+      await updateList(
+        items,
+        editingIndex === -1 ? i18n.t('notifications.addSuccess') : i18n.t('notifications.editSuccess'),
+        collection.page,
+        collection.pageSize
+      )
     } catch (err) {
       console.error(err)
     }
@@ -160,7 +168,7 @@ export default function Project() {
     const removeIds = new Set(collection.selectedItems.map(item => item.id))
     const items = collection.items.filter(item => !removeIds.has(item.id))
     const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
-    await updateList(items, '删除成功', page, collection.pageSize)
+    await updateList(items, i18n.t('notifications.deleteSuccess'), page, collection.pageSize)
   }
 
   useEffect(() => {
@@ -169,23 +177,23 @@ export default function Project() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Portfolio" title="项目管理" description="维护项目作品、技术栈、状态和访问链接。" />
+      <PageHeader eyebrow="Portfolio" title={t('pages.project.title')} description={t('pages.project.description')} />
       <CollectionControls
         itemCount={collection.pageItems.length}
         selectedCount={collection.selected.size}
         allSelected={collection.allSelected}
         partiallySelected={collection.partiallySelected}
         loading={loading}
-        addLabel="新增项目"
-        deleteTitle="删除选中的项目？"
-        deleteDescription="所选项目将从作品集中移除。"
+        addLabel={t('pages.project.add')}
+        deleteTitle={t('pages.project.deleteTitle')}
+        deleteDescription={t('fields.deleteProjectDescription')}
         onSelectAll={collection.selectAll}
         onDelete={removeProjects}
         onAdd={() => openEditDialog(undefined, -1)}
       />
 
       {loading && !collection.pageItems.length ? (
-        <PageLoading label="正在加载项目..." />
+        <PageLoading />
       ) : collection.pageItems.length ? (
         <div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
           {collection.pageItems.map((item, index) => {
@@ -219,7 +227,7 @@ export default function Project() {
                   {item.featured && (
                     <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">
                       <Star className="size-3 fill-current" />
-                      精选
+                      {t('fields.featured')}
                     </span>
                   )}
                   <Checkbox
@@ -286,7 +294,7 @@ export default function Project() {
       ) : (
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
           <FolderKanban className="size-10 opacity-40" />
-          <p>快来发布你的第一个项目</p>
+          <p>{t('fields.emptyProject')}</p>
         </div>
       )}
 
@@ -303,62 +311,64 @@ export default function Project() {
       )}
 
       <Dialog
-        title={editingIndex === -1 ? '新增项目' : '修改项目'}
+        title={editingIndex === -1 ? t('fields.addProject') : t('fields.editProject')}
         open={isDialogOpen}
         onSubmit={throttledSave}
         onCancel={() => setIsDialogOpen(false)}
         width={800}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
         closeOnOutside={false}
       >
         <Form form={form} initialValues={{ featured: false }}>
           <div className="grid gap-x-4 md:grid-cols-2">
-            <FormField name="title" label="项目名称" rules={[{ required: true }]}>
-              <Input placeholder="例如：Mizuki Blog" />
+            <FormField name="title" label={t('fields.projectName')} rules={[{ required: true }]}>
+              <Input placeholder={t('fields.projectName')} />
             </FormField>
-            <FormField name="category" label="分类" rules={[{ required: true }]}>
+            <FormField name="category" label={t('fields.category')} rules={[{ required: true }]}>
               <Select options={categoryOptions} />
             </FormField>
           </div>
-          <FormField name="description" label="项目描述" rules={[{ required: true }]}>
-            <Textarea rows={3} placeholder="简单介绍一下这个项目..." />
+          <FormField name="description" label={t('fields.projectDescription')} rules={[{ required: true }]}>
+            <Textarea rows={3} placeholder={t('fields.projectDescription')} />
           </FormField>
           <div className="flex items-start gap-3">
-            <FormField name="image" label="项目图片" rules={[{ required: true }]} className="min-w-0 flex-1">
-              <Input placeholder="输入图片外链" />
+            <FormField name="image" label={t('fields.projectImage')} rules={[{ required: true }]} className="min-w-0 flex-1">
+              <Input placeholder={t('fields.imageUrl')} />
             </FormField>
             <Upload beforeUpload={handleUpload} accept={imageAccept} disabled={loading}>
               <Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>
-                上传
+                {t('common.upload')}
               </Button>
             </Upload>
           </div>
-          {imageUrlValue && <Image src={imageUrlValue} alt="项目图片预览" className="mb-4 h-28 w-full rounded-lg border object-contain" />}
+          {imageUrlValue && (
+            <Image src={imageUrlValue} alt={t('fields.projectPreview')} className="mb-4 h-28 w-full rounded-lg border object-contain" />
+          )}
           <div className="grid gap-x-4 md:grid-cols-2">
-            <FormField name="status" label="项目状态">
+            <FormField name="status" label={t('fields.projectStatus')}>
               <Select options={statusOptions} />
             </FormField>
-            <FormField name="visitUrl" label="预览地址">
-              <Input prefix={<Rocket className="size-4" />} placeholder="输入预览地址" />
+            <FormField name="visitUrl" label={t('fields.previewUrl')}>
+              <Input prefix={<Rocket className="size-4" />} placeholder={t('fields.previewUrl')} />
             </FormField>
-            <FormField name="sourceCode" label="源码地址">
+            <FormField name="sourceCode" label={t('fields.sourceUrl')}>
               <Input prefix={<FolderGit2 className="size-4" />} placeholder="GitHub Repo URL" />
             </FormField>
-            <FormField name="startDate" label="开始日期" rules={[{ required: true }]}>
+            <FormField name="startDate" label={t('fields.startDate')} rules={[{ required: true }]}>
               <DatePicker />
             </FormField>
-            <FormField name="endDate" label="结束日期">
+            <FormField name="endDate" label={t('fields.endDate')}>
               <DatePicker />
             </FormField>
-            <FormField name="featured" label="是否精选" valueKey="checked">
+            <FormField name="featured" label={t('fields.featured')} valueKey="checked">
               <Switch />
             </FormField>
           </div>
-          <FormField name="techStack" label="技术栈">
-            <Select mode="tags" prefix={<Code2 className="size-4" />} placeholder="输入技术栈后按回车" />
+          <FormField name="techStack" label={t('fields.techStack')}>
+            <Select mode="tags" prefix={<Code2 className="size-4" />} placeholder={t('fields.techStack')} />
           </FormField>
-          <FormField name="tags" label="标签">
-            <Select mode="tags" placeholder="输入项目标签后按回车" />
+          <FormField name="tags" label={t('fields.tags')}>
+            <Select mode="tags" placeholder={t('fields.tags')} />
           </FormField>
         </Form>
       </Dialog>

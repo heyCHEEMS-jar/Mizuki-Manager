@@ -44,13 +44,21 @@ class AlbumManager extends BaseManager {
 	// 创建相册文件夹
 	async createFolder(folderName) {
 		try {
-			if (typeof folderName !== 'string' || !folderName)
+			const name = typeof folderName === 'string' ? folderName.trim() : ''
+			if (!isLegalFilename(name))
 				return {
 					code: 400,
 					success: false,
 					message: '请传入正确的文件夹名'
 				}
-			const folderPath = path.resolve(this.albumsDir, folderName)
+			const folderPath = path.resolve(this.albumsDir, name)
+			const relativePath = path.relative(this.albumsDir, folderPath)
+			if (relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath))
+				return {
+					code: 400,
+					success: false,
+					message: '请传入正确的文件夹名'
+				}
 			// 创建相册配置文件info.json
 			if (await ensureDirExist(folderPath)) {
 				return {

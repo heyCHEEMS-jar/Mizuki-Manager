@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import { Copy, FileImage, FileUp, Folder, FolderOpen, FolderPlus, Pencil, Settings2, Trash2 } from 'lucide-react'
 import { Page, PageHeader, PageLoading } from '../components/Page'
@@ -73,6 +75,7 @@ interface FileItem {
 const toPublicUrl = (url: string) => new URL(url, window.location.origin).href
 
 export default function Album() {
+  const { t } = useTranslation()
   const form = useForm()
   const currentMode: AlbumMode = useFormWatch('mode', form)
   const [loading, setLoading] = useState(false)
@@ -80,6 +83,8 @@ export default function Album() {
   const [files, setFiles] = useState<FileItem[]>([])
   const [curFolderPath, setCurFolderPath] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [folderName, setFolderName] = useState('')
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [renameName, setRenameName] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -92,9 +97,9 @@ export default function Album() {
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
-      notify.success('已复制到剪切板')
+      notify.success(i18n.t('notifications.copied'))
     } catch {
-      notify.error('复制失败')
+      notify.error(i18n.t('notifications.copyFailed'))
     }
   }
 
@@ -156,17 +161,31 @@ export default function Album() {
   )
 
   const addFolder = async () => {
+    const name = folderName.trim()
+    if (!name) {
+      notify.warning(t('fields.folderRequired'))
+      return
+    }
+    const allowedSymbols = '_- .()[]、，。·！？+&=@#~'
+    const legalName =
+      name.length <= 100 &&
+      [...name].every(char => {
+        const code = char.charCodeAt(0)
+        const isChinese = code >= 0x4e00 && code <= 0x9fa5
+        const isLetter = (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
+        const isNumber = code >= 48 && code <= 57
+        return isChinese || isLetter || isNumber || allowedSymbols.includes(char)
+      })
+    if (!legalName) {
+      notify.warning(t('fields.folderInvalid'))
+      return
+    }
     try {
       setLoading(true)
-      const folderName = prompt('输入创建的目录名称')
-      if (folderName === null) return
-      if (!folderName.trim()) {
-        notify.warning('目录名称不能为空')
-        return
-      }
-      const res = await createFolder(folderName.trim())
+      const res = await createFolder(name)
       if (res.success) {
-        notify.success('创建成功')
+        setCreateDialogOpen(false)
+        notify.success(t('fields.createSuccess'))
         await getAllFolders()
         if (res.data?.folderPath) await selectFolder(res.data.folderPath)
       }
@@ -181,7 +200,7 @@ export default function Album() {
     try {
       setLoading(true)
       const res = await uploadAlbumFiles(curFolderPath, fileList)
-      if (res.success) notify.success('上传成功')
+      if (res.success) notify.success(i18n.t('notifications.uploadSuccess'))
     } catch {
     } finally {
       await getAllFiles(curFolderPath, pageNum, pageSize)
@@ -197,7 +216,7 @@ export default function Album() {
       setLoading(true)
       const res = await deleteFiles(paths)
       if (res.success) {
-        notify.success('删除成功')
+        notify.success(i18n.t('notifications.deleteSuccess'))
         setCheckedPaths(new Set())
       }
     } catch {
@@ -212,7 +231,7 @@ export default function Album() {
     if (loading) return
     const newName = renameName.trim()
     if (!newName) {
-      notify.warning('新名称不能为空')
+      notify.warning(i18n.t('notifications.nameRequired'))
       return
     }
     if (newName === currentFolder?.folderName) {
@@ -223,7 +242,7 @@ export default function Album() {
       setLoading(true)
       const res = await renameFolder(curFolderPath, newName)
       if (res.success) {
-        notify.success('重命名成功')
+        notify.success(i18n.t('notifications.renameSuccess'))
         setRenameDialogOpen(false)
         await getAllFolders()
         if (res.data?.folderPath) await selectFolder(res.data.folderPath)
@@ -239,7 +258,7 @@ export default function Album() {
       setLoading(true)
       const res = await deleteFolder(curFolderPath)
       if (res.success) {
-        notify.success('删除成功')
+        notify.success(i18n.t('notifications.deleteSuccess'))
         setCurFolderPath('')
         setFiles([])
         setPageTotal(0)
@@ -289,7 +308,7 @@ export default function Album() {
       }
       const res = await updateInfo(curFolderPath, JSON.stringify(payload, null, 2))
       if (res.success) {
-        notify.success('保存成功')
+        notify.success(i18n.t('notifications.saveSuccess'))
         setIsDialogOpen(false)
       }
     } catch {
@@ -313,11 +332,21 @@ export default function Album() {
   const renderFolderList = () => (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b p-3">
-        <Button variant="outline" block className="border-dashed" icon={<FolderPlus className="size-4" />} loading={loading} onClick={addFolder}>
-          新建目录
+        <Button
+          variant="outline"
+          block
+          className="border-dashed"
+          icon={<FolderPlus className="size-4" />}
+          loading={loading}
+          onClick={() => {
+            setFolderName('')
+            setCreateDialogOpen(true)
+          }}
+        >
+          {t('fields.newFolder')}
         </Button>
       </div>
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2" aria-label="相册目录">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2" aria-label={t('fields.albumFolders')}>
         {folders.map(folder => (
           <button
             key={folder.folderPath}
@@ -332,7 +361,7 @@ export default function Album() {
             <span className="truncate">{folder.folderName}</span>
           </button>
         ))}
-        {!folders.length && <p className="px-3 py-8 text-center text-xs text-muted-foreground">暂无相册目录</p>}
+        {!folders.length && <p className="px-3 py-8 text-center text-xs text-muted-foreground">{t('fields.emptyAlbumFolders')}</p>}
       </nav>
     </div>
   )
@@ -341,12 +370,12 @@ export default function Album() {
     <Page className="max-w-none">
       <PageHeader
         eyebrow="Gallery"
-        title={currentFolder?.folderName || '相册管理'}
-        description={currentFolder ? '管理当前相册中的图片与展示配置。' : '选择或创建相册目录后开始管理图片。'}
+        title={currentFolder?.folderName || t('pages.album.title')}
+        description={currentFolder ? t('pages.album.folderDescription') : t('pages.album.description')}
         actions={
           <>
             <Button className="lg:hidden" icon={<FolderOpen className="size-4" />} onClick={() => setSheetOpen(true)}>
-              目录
+              {t('common.folders')}
             </Button>
             {curFolderPath && (
               <>
@@ -358,26 +387,26 @@ export default function Album() {
                     setRenameDialogOpen(true)
                   }}
                 >
-                  重命名
+                  {t('common.rename')}
                 </Button>
                 <ConfirmDialog
                   trigger={
                     <Button variant="destructive" icon={<Trash2 className="size-4" />} disabled={loading}>
-                      删除相册
+                      {t('fields.deleteAlbum')}
                     </Button>
                   }
-                  title="删除整个相册？"
-                  description="目录、图片和配置都会被删除，此操作无法撤回。"
-                  confirmLabel="删除相册"
+                  title={t('fields.deleteAlbumTitle')}
+                  description={t('fields.deleteAlbumDescription')}
+                  confirmLabel={t('fields.deleteAlbum')}
                   variant="destructive"
                   onConfirm={removeFolder}
                 />
                 <Button icon={<Settings2 className="size-4" />} loading={loading} onClick={getInfoContent}>
-                  配置
+                  {t('fields.config')}
                 </Button>
                 <Upload beforeUpload={uploadFiles} multiple accept={imageAccept} disabled={loading}>
                   <Button variant="default" icon={<FileUp className="size-4" />} loading={loading}>
-                    上传图片
+                    {t('fields.uploadImages')}
                   </Button>
                 </Upload>
               </>
@@ -393,11 +422,11 @@ export default function Album() {
             <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
               <FileImage className="mt-0.5 size-4 shrink-0" />
               <p>
-                本地模式下相册内必须存在一个名为{' '}
+                {t('fields.localCoverPrefix')}{' '}
                 <button type="button" className="font-mono font-semibold underline" onClick={() => copy('cover.jpg')}>
                   cover.jpg
                 </button>{' '}
-                的封面图片。
+                {t('fields.localCoverSuffix')}
               </p>
             </div>
           )}
@@ -409,18 +438,18 @@ export default function Album() {
                 indeterminate={checkedPaths.size > 0 && checkedPaths.size < files.length}
                 onCheckedChange={checked => setCheckedPaths(checked ? new Set(files.map(file => file.filePath)) : new Set())}
               >
-                全选
+                {t('common.selectAll')}
               </Checkbox>
               {checkedPaths.size > 0 && (
                 <ConfirmDialog
                   trigger={
                     <Button variant="destructive" size="small" icon={<Trash2 className="size-4" />} loading={loading}>
-                      删除 {checkedPaths.size} 项
+                      {t('fields.selectedItems', { count: checkedPaths.size })}
                     </Button>
                   }
-                  title="删除选中的图片？"
-                  description="所选图片将从相册目录中永久删除。"
-                  confirmLabel="删除"
+                  title={t('fields.deleteImagesTitle')}
+                  description={t('fields.deleteImagesDescription')}
+                  confirmLabel={t('common.delete')}
                   variant="destructive"
                   onConfirm={removeFiles}
                 />
@@ -457,7 +486,7 @@ export default function Album() {
                       />
                       {file.filename === 'cover.jpg' && (
                         <span className="absolute left-2 top-2 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground">
-                          封面
+                          {t('fields.coverBadge')}
                         </span>
                       )}
                       <Checkbox
@@ -508,22 +537,41 @@ export default function Album() {
         </section>
       </div>
 
-      <Sheet title="相册目录" side="left" width={288} open={sheetOpen} onClose={() => setSheetOpen(false)} bodyClassName="p-0">
+      <Sheet title={t('fields.albumFolders')} side="left" width={288} open={sheetOpen} onClose={() => setSheetOpen(false)} bodyClassName="p-0">
         {renderFolderList()}
       </Sheet>
 
       <Dialog
-        title="重命名相册"
+        title={t('fields.newFolder')}
+        open={createDialogOpen}
+        onSubmit={addFolder}
+        onCancel={() => setCreateDialogOpen(false)}
+        width={420}
+        confirmLabel={t('fields.create')}
+      >
+        <Input
+          autoFocus
+          value={folderName}
+          placeholder={t('fields.folderPlaceholder')}
+          onChange={event => setFolderName(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === 'Enter') addFolder()
+          }}
+        />
+      </Dialog>
+
+      <Dialog
+        title={t('fields.renameAlbum')}
         open={renameDialogOpen}
         onSubmit={modifyFolderName}
         onCancel={() => setRenameDialogOpen(false)}
         width={420}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
       >
         <Input
           autoFocus
           value={renameName}
-          placeholder="输入相册名称"
+          placeholder={t('fields.albumTitle')}
           onChange={event => setRenameName(event.target.value)}
           onKeyDown={event => {
             if (event.key === 'Enter') modifyFolderName()
@@ -532,54 +580,54 @@ export default function Album() {
       </Dialog>
 
       <Dialog
-        title="编辑相册配置"
+        title={t('fields.editAlbum')}
         open={isDialogOpen}
         onSubmit={throttledSave}
         onCancel={() => setIsDialogOpen(false)}
         width={currentMode === 'external' ? 800 : 640}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
         closeOnOutside={false}
       >
         <Form form={form}>
           <div className="grid gap-x-4 md:grid-cols-12">
-            <FormField name="mode" label="模式" className="md:col-span-4">
+            <FormField name="mode" label={t('fields.mode')} className="md:col-span-4">
               <Select
                 options={[
-                  { value: '', label: '本地模式' },
-                  { value: 'external', label: '外链模式' }
+                  { value: '', label: t('fields.localMode') },
+                  { value: 'external', label: t('fields.externalMode') }
                 ]}
               />
             </FormField>
-            <FormField name="hidden" label="隐藏相册" valueKey="checked" className="md:col-span-3">
-              <Switch checkedChildren="隐藏" unCheckedChildren="显示" />
+            <FormField name="hidden" label={t('fields.hiddenAlbum')} valueKey="checked" className="md:col-span-3">
+              <Switch checkedChildren={t('fields.hide')} unCheckedChildren={t('fields.show')} />
             </FormField>
-            <FormField name="title" label="相册标题" className="md:col-span-5">
-              <Input placeholder="输入相册标题" />
+            <FormField name="title" label={t('fields.albumTitle')} className="md:col-span-5">
+              <Input placeholder={t('fields.albumTitle')} />
             </FormField>
           </div>
-          <FormField name="description" label="相册描述">
-            <Textarea placeholder="输入相册描述" rows={3} showCount />
+          <FormField name="description" label={t('fields.albumDescription')}>
+            <Textarea placeholder={t('fields.albumDescription')} rows={3} showCount />
           </FormField>
           <div className="grid gap-x-4 md:grid-cols-2">
-            <FormField name="date" label="创建日期">
+            <FormField name="date" label={t('fields.createdAt')}>
               <DatePicker />
             </FormField>
-            <FormField name="location" label="拍摄地点">
-              <Input placeholder="输入拍摄地点" />
+            <FormField name="location" label={t('fields.location')}>
+              <Input placeholder={t('fields.location')} />
             </FormField>
-            <FormField name="tags" label="标签">
-              <Select mode="tags" placeholder="输入标签" tokenSeparators={[',', ';', '，', '；']} />
+            <FormField name="tags" label={t('fields.tags')}>
+              <Select mode="tags" placeholder={t('fields.tags')} tokenSeparators={[',', ';', '，', '；']} />
             </FormField>
             <div className="grid grid-cols-2 gap-x-4">
-              <FormField name="layout" label="布局方式">
+              <FormField name="layout" label={t('fields.layout')}>
                 <Select
                   options={[
-                    { value: 'grid', label: '网格布局' },
-                    { value: 'masonry', label: '瀑布流布局' }
+                    { value: 'grid', label: t('fields.grid') },
+                    { value: 'masonry', label: t('fields.masonry') }
                   ]}
                 />
               </FormField>
-              <FormField name="columns" label="列数">
+              <FormField name="columns" label={t('fields.columns')}>
                 <Select options={[1, 2, 3, 4].map(value => ({ value, label: `${value} 列` }))} />
               </FormField>
             </div>
@@ -587,11 +635,11 @@ export default function Album() {
 
           {currentMode === 'external' && (
             <>
-              <FormField name="cover" label="封面图片链接" rules={[{ required: true }]}>
-                <Input placeholder="输入封面图片 URL" />
+              <FormField name="cover" label={t('fields.coverUrl')} rules={[{ required: true }]}>
+                <Input placeholder={t('fields.coverUrl')} />
               </FormField>
               <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="text-sm font-medium">相册图片列表</div>
+                <div className="text-sm font-medium">{t('fields.photoList')}</div>
               </div>
               <FormList name="photos">
                 {(fields, { add, remove }) => (
@@ -604,12 +652,12 @@ export default function Album() {
                           return (
                             <div className="rounded-xl border bg-muted/20 p-4">
                               <div className="mb-3 flex items-center justify-between">
-                                <span className="text-sm font-medium">图片 {index + 1}</span>
+                                <span className="text-sm font-medium">{t('fields.image', { index: index + 1 })}</span>
                                 {fields.length > 1 && (
                                   <Button
                                     variant="ghost"
                                     className="size-8 px-0 text-destructive hover:bg-destructive/10"
-                                    aria-label="删除图片"
+                                    aria-label={t('common.delete')}
                                     onClick={() => remove(name)}
                                   >
                                     <Trash2 className="size-4" />
@@ -618,11 +666,11 @@ export default function Album() {
                               </div>
                               <div className={cn('grid gap-3', src && 'sm:grid-cols-[1fr_9rem]')}>
                                 <div>
-                                  <FormField name={[name, 'src']} label="图片链接" rules={[{ required: index > 0 }]}>
-                                    <Input placeholder="输入图片 URL" />
+                                  <FormField name={[name, 'src']} label={t('fields.imageUrl')} rules={[{ required: index > 0 }]}>
+                                    <Input placeholder={t('fields.imageUrl')} />
                                   </FormField>
-                                  <FormField name={[name, 'alt']} label="图片描述" className="mb-0">
-                                    <Input placeholder="输入图片描述" />
+                                  <FormField name={[name, 'alt']} label={t('fields.imageDescription')} className="mb-0">
+                                    <Input placeholder={t('fields.imageDescription')} />
                                   </FormField>
                                 </div>
                                 {src && <Image src={src} alt={alt || '图片预览'} className="h-32 w-full rounded-lg border object-cover" />}
@@ -633,7 +681,7 @@ export default function Album() {
                       </FormField>
                     ))}
                     <Button variant="outline" block className="border-dashed" onClick={() => add({ src: '', alt: '' })}>
-                      添加图片
+                      {t('fields.addImage')}
                     </Button>
                   </div>
                 )}

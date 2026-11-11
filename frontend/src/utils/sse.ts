@@ -1,5 +1,6 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { notify as message } from '../lib/notify'
+import i18n from '../i18n'
 import { redirectToLogin } from './util'
 import { refreshToken, SESSION_CONFLICT_CODE, SESSION_CONFLICT_EVENT } from './request'
 import { RefObject } from 'react'
@@ -43,7 +44,7 @@ export const createSSE = (params: SSEParams, retryCount: number = 0) => {
       if (res.status === 401) {
         // 最多刷新重试3次
         if (retryCount >= 3) {
-          message.error('登录刷新失败，请稍后重试')
+          message.error(i18n.t('notifications.refreshFailed'))
           await redirectToLogin() // 已经重试过了，仍然401，直接跳转登录页
           controllerRef?.current.abort()
           return
@@ -85,7 +86,7 @@ export const createSSE = (params: SSEParams, retryCount: number = 0) => {
     },
     onerror(err) {
       console.error(err)
-      message.error(err.message || '连接异常')
+      message.error(err.message || i18n.t('notifications.connectionError'))
     }
   })
 }

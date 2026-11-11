@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, LockKeyhole, RefreshCw, ShieldCheck, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Button, Input, PasswordInput } from '../components/ui'
 import { notify } from '../lib/notify'
 import { login, refreshCaptchaBase64 } from '../services/auth'
@@ -15,6 +16,7 @@ interface LoginInput {
 const initialValues: LoginInput = { username: '', password: '', captcha: '' }
 
 export default function Login() {
+  const { t } = useTranslation()
   const [values, setValues] = useState(initialValues)
   const [loading, setLoading] = useState(false)
   const [captchaBase64, setCaptchaBase64] = useState('')
@@ -30,7 +32,7 @@ export default function Login() {
       sessionStorage.setItem('token', token)
       localStorage.setItem('token', token)
       navigate('/')
-      notify.success('欢迎回来')
+      notify.success(t('login.welcome'))
     } catch (err: any) {
       if (err.data?.captchaBase64) setCaptchaBase64(err.data.captchaBase64)
     } finally {
@@ -40,7 +42,7 @@ export default function Login() {
 
   const refreshCaptcha = async () => {
     if (!values.username) {
-      notify.warning('请先输入用户名')
+      notify.warning(t('login.usernameRequired'))
       return
     }
     try {
@@ -62,17 +64,17 @@ export default function Login() {
           <span className="grid size-11 place-items-center rounded-xl bg-white text-xl font-bold text-primary shadow-lg">M</span>
           <div>
             <div className="font-semibold tracking-wide">MIZUKI MANAGER</div>
-            <div className="text-sm text-white/70">Mizuki 博客管理器</div>
+            <div className="text-sm text-white/70">{t('login.brand')}</div>
           </div>
         </div>
         <div className="relative max-w-xl pb-12">
           <p className="text-sm font-medium uppercase tracking-[0.22em] text-white/65">Content workspace</p>
-          <h1 className="mt-5 text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">让内容管理保持简单、清晰且专注。</h1>
-          <p className="mt-5 max-w-lg leading-7 text-white/75">集中管理博客内容、媒体资源与站点配置。</p>
+          <h1 className="mt-5 text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">{t('login.slogan')}</h1>
+          <p className="mt-5 max-w-lg leading-7 text-white/75">{t('login.summary')}</p>
         </div>
         <div className="relative flex items-center gap-2 text-sm text-white/65">
           <ShieldCheck className="size-4" />
-          仅限博客管理员访问
+          {t('login.adminOnly')}
         </div>
       </section>
 
@@ -83,27 +85,27 @@ export default function Login() {
               <span className="grid size-10 place-items-center rounded-xl bg-primary font-bold text-primary-foreground">M</span>
               <div>
                 <div className="font-semibold">Mizuki Manager</div>
-                <div className="text-xs text-muted-foreground">博客内容管理</div>
+                <div className="text-xs text-muted-foreground">{t('app.blogManager')}</div>
               </div>
             </div>
           </div>
 
           <div className="rounded-2xl border bg-card p-6 shadow-xl shadow-black/5 sm:p-8">
             <div className="mb-7">
-              <h2 className="text-2xl font-semibold tracking-tight">登录管理后台</h2>
-              <p className="mt-2 text-sm text-muted-foreground">请输入管理员账号和密码继续。</p>
+              <h2 className="text-2xl font-semibold tracking-tight">{t('login.title')}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">{t('login.description')}</p>
             </div>
 
             <form className="space-y-5" onSubmit={handleLogin}>
               <div className="space-y-2">
                 <label htmlFor="username" className="text-sm font-medium">
-                  用户名
+                  {t('login.username')}
                 </label>
                 <Input
                   id="username"
                   value={values.username}
                   prefix={<UserRound className="size-4" />}
-                  placeholder="请输入用户名"
+                  placeholder={t('login.usernamePlaceholder')}
                   autoComplete="username"
                   disabled={loading}
                   required
@@ -116,13 +118,13 @@ export default function Login() {
 
               <div className="space-y-2">
                 <label htmlFor="password" className="text-sm font-medium">
-                  密码
+                  {t('login.password')}
                 </label>
                 <PasswordInput
                   id="password"
                   value={values.password}
                   prefix={<LockKeyhole className="size-4" />}
-                  placeholder="请输入密码"
+                  placeholder={t('login.passwordPlaceholder')}
                   autoComplete="current-password"
                   disabled={loading}
                   required
@@ -133,13 +135,13 @@ export default function Login() {
               {captchaBase64 && (
                 <div className="space-y-2">
                   <label htmlFor="captcha" className="text-sm font-medium">
-                    验证码
+                    {t('login.captcha')}
                   </label>
                   <div className="flex items-stretch gap-2">
                     <Input
                       id="captcha"
                       value={values.captcha}
-                      placeholder="请输入验证码"
+                      placeholder={t('login.captchaPlaceholder')}
                       autoComplete="off"
                       disabled={loading}
                       required
@@ -150,9 +152,9 @@ export default function Login() {
                       className="group relative w-28 shrink-0 overflow-hidden rounded-md border bg-muted"
                       onClick={refreshCaptcha}
                       disabled={loading}
-                      title="点击刷新验证码"
+                      title={t('login.refreshCaptcha')}
                     >
-                      <img src={captchaBase64} className="size-full object-contain" alt="验证码" />
+                      <img src={captchaBase64} className="size-full object-contain" alt={t('login.captcha')} />
                       <span className="absolute inset-0 hidden items-center justify-center bg-black/45 text-white group-hover:flex">
                         <RefreshCw className="size-4" />
                       </span>
@@ -162,14 +164,14 @@ export default function Login() {
               )}
 
               <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
-                <button type="button" className="text-primary hover:underline" onClick={() => notify.warning('默认账号密码在 .env 环境配置中更改')}>
-                  忘记密码？
+                <button type="button" className="text-primary hover:underline" onClick={() => notify.warning(t('login.credentialsHint'))}>
+                  {t('login.forgot')}
                 </button>
-                <span>登录有效期：{formatTimeDisplay(process.env.TOKEN_EXPIRES_IN || '')}</span>
+                <span>{t('login.expires', { time: formatTimeDisplay(process.env.TOKEN_EXPIRES_IN || '') })}</span>
               </div>
 
               <Button type="submit" variant="default" block loading={loading} size="large" className="mt-1">
-                登录
+                {t('login.submit')}
                 {!loading && <ArrowRight className="size-4" />}
               </Button>
             </form>

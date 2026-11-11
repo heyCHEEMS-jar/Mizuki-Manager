@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { managerList } from '../configs/manager-config'
 import { cn } from '../lib/utils'
 
@@ -8,6 +9,8 @@ interface Props {
 }
 
 export default function SidebarMenu({ onNavigate, showBrand = true }: Props) {
+  const { t } = useTranslation()
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {showBrand && (
@@ -15,13 +18,13 @@ export default function SidebarMenu({ onNavigate, showBrand = true }: Props) {
           <span className="grid size-10 place-items-center rounded-xl bg-primary text-lg font-bold text-primary-foreground shadow-sm">M</span>
           <span className="min-w-0">
             <span className="block truncate font-semibold tracking-tight">Mizuki Manager</span>
-            <span className="block text-xs text-muted-foreground">博客内容管理</span>
+            <span className="block text-xs text-muted-foreground">{t('app.blogManager')}</span>
           </span>
         </NavLink>
       )}
 
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3" aria-label="功能导航">
-        {managerList.map(({ title, subtitle, icon: Icon, path }) => (
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3" aria-label={t('app.navigation')}>
+        {managerList.map(({ titleKey, subtitleKey, icon: Icon, path }) => (
           <NavLink
             key={path}
             to={path}
@@ -34,8 +37,8 @@ export default function SidebarMenu({ onNavigate, showBrand = true }: Props) {
             }
           >
             <Icon className="size-4.5 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate">{title}</span>
-            <span className="text-[11px] text-muted-foreground group-hover:text-current group-hover:opacity-70">{subtitle}</span>
+            <span className="min-w-0 flex-1 truncate">{t(titleKey)}</span>
+            <span className="text-[11px] text-muted-foreground group-hover:text-current group-hover:opacity-70">{t(subtitleKey)}</span>
           </NavLink>
         ))}
       </nav>

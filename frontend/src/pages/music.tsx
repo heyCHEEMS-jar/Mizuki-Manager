@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { Disc3, FileAudio, FileUp, Image as ImageIcon, Pencil, Play } from 'lucide-react'
 import { CollectionControls } from '../components/CollectionControls'
 import { Page, PageHeader, PageLoading } from '../components/Page'
@@ -25,6 +27,7 @@ const formatDuration = (seconds: number) => {
 }
 
 export default function Music() {
+  const { t } = useTranslation()
   const form = useForm()
   const [loading, setLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -75,7 +78,7 @@ export default function Music() {
       setLoading(true)
       const res = await uploadCoverFile(file)
       if (res.success) {
-        notify.success('上传成功')
+        notify.success(i18n.t('notifications.uploadSuccess'))
         form.setValues({ cover: res.data?.[0]?.publicPath || '' })
       }
     } catch {
@@ -90,7 +93,7 @@ export default function Music() {
       setLoading(true)
       const res = await uploadMusicFile(file)
       if (res.success) {
-        notify.success('上传成功')
+        notify.success(i18n.t('notifications.uploadSuccess'))
         form.setValues({ url: res.data?.[0]?.publicPath || '' })
       }
     } catch {
@@ -111,7 +114,12 @@ export default function Music() {
         const realIndex = items.findIndex(item => item.id === collection.pageItems[editingIndex].id)
         if (realIndex !== -1) items[realIndex] = values
       }
-      await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
+      await updateList(
+        items,
+        editingIndex === -1 ? i18n.t('notifications.addSuccess') : i18n.t('notifications.editSuccess'),
+        collection.page,
+        collection.pageSize
+      )
     } catch (err) {
       console.error(err)
     }
@@ -122,7 +130,7 @@ export default function Music() {
     const removeIds = new Set(collection.selectedItems.map(item => item.id))
     const items = collection.items.filter(item => !removeIds.has(item.id))
     const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
-    await updateList(items, '删除成功', page, collection.pageSize)
+    await updateList(items, i18n.t('notifications.deleteSuccess'), page, collection.pageSize)
   }
 
   useEffect(() => {
@@ -131,23 +139,23 @@ export default function Music() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Playlist" title="歌单管理" description="维护音乐播放器中的歌曲、封面和音频资源。" />
+      <PageHeader eyebrow="Playlist" title={t('pages.music.title')} description={t('pages.music.description')} />
       <CollectionControls
         itemCount={collection.pageItems.length}
         selectedCount={collection.selected.size}
         allSelected={collection.allSelected}
         partiallySelected={collection.partiallySelected}
         loading={loading}
-        addLabel="新增歌曲"
-        deleteTitle="删除选中的歌曲？"
-        deleteDescription="所选歌曲将从本地歌单中移除。"
+        addLabel={t('pages.music.add')}
+        deleteTitle={t('pages.music.deleteTitle')}
+        deleteDescription={t('fields.deleteMusicDescription')}
         onSelectAll={collection.selectAll}
         onDelete={removeSongs}
         onAdd={() => openEditDialog(undefined, -1)}
       />
 
       {loading && !collection.pageItems.length ? (
-        <PageLoading label="正在加载歌单..." />
+        <PageLoading />
       ) : collection.pageItems.length ? (
         <div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', loading && 'pointer-events-none opacity-60')}>
           {collection.pageItems.map((item, index) => {
@@ -218,7 +226,7 @@ export default function Music() {
       ) : (
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-sm text-muted-foreground">
           <Disc3 className="size-10 opacity-40" />
-          <p>暂未添加歌曲</p>
+          <p>{t('fields.emptyMusic')}</p>
         </div>
       )}
 
@@ -235,46 +243,48 @@ export default function Music() {
       )}
 
       <Dialog
-        title={editingIndex === -1 ? '新增歌曲' : '编辑歌曲'}
+        title={editingIndex === -1 ? t('fields.addSong') : t('fields.editSong')}
         open={isDialogOpen}
         onSubmit={throttledSave}
         onCancel={() => setIsDialogOpen(false)}
         width={600}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
         closeOnOutside={false}
       >
         <Form form={form}>
-          <div className="grid gap-x-4 md:grid-cols-4">
-            <FormField name="title" label="歌曲名称" rules={[{ required: true }]} className="md:col-span-2">
-              <Input placeholder="输入歌曲名称" />
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <FormField name="title" label={t('fields.songName')} rules={[{ required: true }]} className="sm:col-span-2">
+              <Input placeholder={t('fields.songName')} />
             </FormField>
-            <FormField name="artist" label="艺术家" rules={[{ required: true }]}>
-              <Input placeholder="输入艺术家" />
+            <FormField name="artist" label={t('fields.artist')} rules={[{ required: true }]}>
+              <Input placeholder={t('fields.artist')} />
             </FormField>
-            <FormField name="duration" label="时长（秒）" rules={[{ required: true }]}>
-              <NumberInput min={1} placeholder="单位为秒" />
+            <FormField name="duration" label={t('fields.duration')} rules={[{ required: true }]}>
+              <NumberInput min={1} placeholder={t('fields.duration')} />
             </FormField>
           </div>
 
           <div className="flex items-start gap-3">
-            <FormField name="cover" label="封面图片" rules={[{ required: true }]} className="min-w-0 flex-1">
-              <Input prefix={<ImageIcon className="size-4" />} placeholder="输入图片链接" />
+            <FormField name="cover" label={t('fields.songCover')} rules={[{ required: true }]} className="min-w-0 flex-1">
+              <Input prefix={<ImageIcon className="size-4" />} placeholder={t('fields.imageUrl')} />
             </FormField>
             <Upload beforeUpload={uploadCover} accept={imageAccept} disabled={loading}>
               <Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>
-                上传封面
+                {t('fields.uploadCover')}
               </Button>
             </Upload>
           </div>
-          {coverUrlValue && <Image src={coverUrlValue} alt="歌曲封面预览" className="mb-4 h-24 w-full rounded-lg border object-contain" />}
+          {coverUrlValue && (
+            <Image src={coverUrlValue} alt={t('fields.musicPreview')} className="mb-4 h-24 w-full rounded-lg border object-contain" />
+          )}
 
           <div className="flex items-start gap-3">
-            <FormField name="url" label="音频文件" rules={[{ required: true }]} className="min-w-0 flex-1">
-              <Input prefix={<FileAudio className="size-4" />} placeholder="输入音频链接" />
+            <FormField name="url" label={t('fields.audioFile')} rules={[{ required: true }]} className="min-w-0 flex-1">
+              <Input prefix={<FileAudio className="size-4" />} placeholder={t('fields.audioFile')} />
             </FormField>
             <Upload beforeUpload={uploadMusic} accept={audioAccept} disabled={loading}>
               <Button className="mt-6" icon={<FileUp className="size-4" />} loading={loading}>
-                上传音频
+                {t('fields.uploadAudio')}
               </Button>
             </Upload>
           </div>

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { ExternalLink, Pencil, UserRound, Users } from 'lucide-react'
 import { CollectionControls } from '../components/CollectionControls'
 import { Page, PageHeader, PageLoading } from '../components/Page'
@@ -19,6 +21,7 @@ export interface FriendItem {
 }
 
 export default function Friend() {
+  const { t } = useTranslation()
   const form = useForm()
   const [loading, setLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -74,7 +77,12 @@ export default function Friend() {
         const realIndex = items.findIndex(item => item.id === collection.pageItems[editingIndex].id)
         if (realIndex !== -1) items[realIndex] = values
       }
-      await updateList(items, editingIndex === -1 ? '添加成功' : '修改成功', collection.page, collection.pageSize)
+      await updateList(
+        items,
+        editingIndex === -1 ? i18n.t('notifications.addSuccess') : i18n.t('notifications.editSuccess'),
+        collection.page,
+        collection.pageSize
+      )
     } catch (err) {
       console.error(err)
     }
@@ -85,7 +93,7 @@ export default function Friend() {
     const removeIds = new Set(collection.selectedItems.map(item => item.id))
     const items = collection.items.filter(item => !removeIds.has(item.id))
     const page = Math.min(collection.page, Math.max(1, Math.ceil(items.length / collection.pageSize)))
-    await updateList(items, '删除成功', page, collection.pageSize)
+    await updateList(items, i18n.t('notifications.deleteSuccess'), page, collection.pageSize)
   }
 
   useEffect(() => {
@@ -94,16 +102,16 @@ export default function Friend() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Links" title="友链管理" description="维护友好站点、站点描述与分类标签。" />
+      <PageHeader eyebrow="Links" title={t('pages.friend.title')} description={t('pages.friend.description')} />
       <CollectionControls
         itemCount={collection.pageItems.length}
         selectedCount={collection.selected.size}
         allSelected={collection.allSelected}
         partiallySelected={collection.partiallySelected}
         loading={loading}
-        addLabel="新增友链"
-        deleteTitle="删除选中的友链？"
-        deleteDescription="所选友链将从站点配置中移除。"
+        addLabel={t('pages.friend.add')}
+        deleteTitle={t('pages.friend.deleteTitle')}
+        deleteDescription={t('fields.deleteFriendDescription')}
         onSelectAll={collection.selectAll}
         onDelete={removeFriends}
         onAdd={() => openEditDialog(undefined, -1)}
@@ -145,7 +153,7 @@ export default function Friend() {
                       className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
                       onClick={event => event.stopPropagation()}
                     >
-                      访问站点
+                      {t('fields.visitSite')}
                       <ExternalLink className="size-3" />
                     </a>
                   </div>
@@ -174,7 +182,7 @@ export default function Friend() {
       ) : (
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card text-center text-sm text-muted-foreground">
           <Users className="size-10 opacity-40" />
-          <p>目前还没有友链</p>
+          <p>{t('fields.emptyFriends')}</p>
         </div>
       )}
 
@@ -191,34 +199,34 @@ export default function Friend() {
       )}
 
       <Dialog
-        title={editingIndex === -1 ? '新增友链' : '修改友链'}
+        title={editingIndex === -1 ? t('fields.addFriend') : t('fields.editFriend')}
         open={isDialogOpen}
         onSubmit={throttledSave}
         onCancel={() => setIsDialogOpen(false)}
         width={600}
-        confirmLabel="保存"
+        confirmLabel={t('common.save')}
         closeOnOutside={false}
       >
         <Form form={form}>
           <div className="grid gap-x-4 md:grid-cols-2">
-            <FormField name="title" label="站点名称" rules={[{ required: true }]}>
-              <Input placeholder="输入站点名称" />
+            <FormField name="title" label={t('fields.siteName')} rules={[{ required: true }]}>
+              <Input placeholder={t('fields.siteName')} />
             </FormField>
-            <FormField name="siteurl" label="站点链接" rules={[{ required: true }]}>
-              <Input prefix={<ExternalLink className="size-4" />} placeholder="输入站点链接" />
+            <FormField name="siteurl" label={t('fields.siteUrl')} rules={[{ required: true }]}>
+              <Input prefix={<ExternalLink className="size-4" />} placeholder={t('fields.siteUrl')} />
             </FormField>
           </div>
           <div className="flex items-start gap-3">
-            <FormField name="imgurl" label="图标链接" rules={[{ required: true }]} className="min-w-0 flex-1">
-              <Input placeholder="输入站点图标外链" />
+            <FormField name="imgurl" label={t('fields.iconUrl')} rules={[{ required: true }]} className="min-w-0 flex-1">
+              <Input placeholder={t('fields.iconUrl')} />
             </FormField>
             {imgUrlValue && <Avatar shape="square" src={imgUrlValue} className="mt-6" />}
           </div>
-          <FormField name="desc" label="站点描述" rules={[{ required: true }]}>
-            <Textarea placeholder="简单介绍一下对方..." rows={3} />
+          <FormField name="desc" label={t('fields.siteDescription')} rules={[{ required: true }]}>
+            <Textarea placeholder={t('fields.siteDescription')} rows={3} />
           </FormField>
-          <FormField name="tags" label="标签">
-            <Select mode="tags" placeholder="输入标签后按回车" />
+          <FormField name="tags" label={t('fields.tags')}>
+            <Select mode="tags" placeholder={t('fields.tags')} />
           </FormField>
         </Form>
       </Dialog>
