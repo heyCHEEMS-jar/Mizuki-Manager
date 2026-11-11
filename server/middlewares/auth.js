@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken')
 const { JWT_SECRET } = require('../config.js')
+const { authManager } = require('../managers/index.js')
 
 const verifyToken = (req, res, next) => {
 	const header = req.headers['authorization'] || req.headers['Authorization']
@@ -30,6 +31,11 @@ const verifyToken = (req, res, next) => {
 				success: false,
 				message: '身份认证失败'
 			})
+		}
+		const sessionResult = authManager.checkSession(req.cookies?.refreshToken)
+		if (sessionResult.code !== 200) {
+			const code = sessionResult.code === 601 ? 401 : sessionResult.code
+			return res.status(code).json({ ...sessionResult, code: code === 403 ? 40301 : code, message: sessionResult.message || '登录凭证无效' })
 		}
 		req.user = user
 		next()

@@ -10,4 +10,4 @@ export const logout = () => request.post({ url: '/mizuki/auth/logout' })
 export const refreshCaptchaBase64 = (data: { username: string }) => request.get({ url: '/mizuki/auth/refresh-captcha', data })
 
 // 检查当前会话是否在线，多端登录返回失败响应
-export const checkSession = () => request.post({ url: '/mizuki/auth/check-session' })
+export const checkSession = () => request.post({ url: '/mizuki/auth/check-session', silent: true })

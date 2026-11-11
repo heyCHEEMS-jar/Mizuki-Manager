@@ -1,26 +1,28 @@
 const express = require('express')
 const router = express.Router()
-const { AuthManager } = require('../managers/index.js')
+const { authManager: am } = require('../managers/index.js')
 const { COOKIE_SECURE } = require('../config.js')
 const { getFormattedTimeMs } = require('../utils/util.js')
-const am = new AuthManager()
 
 const COOKIE_OPTIONS = {
 	httpOnly: true,
 	secure: COOKIE_SECURE, // 默认仅通过HTTPS传输cookie
 	sameSite: 'strict', // 防止CSRF攻击
 	maxAge: getFormattedTimeMs(process.env.TOKEN_EXPIRES_IN), // cookie过期时间与长token一致
-	path: '/mizuki/auth' // 仅refresh-token接口需要
+	path: '/mizuki' // 所有业务请求携带长token
 }
 
 router.post('/login', (req, res) => {
 	const { username, password, captcha } = req?.body || {}
 	const result = am.login(username, password, captcha)
-	res.cookie('refreshToken', result?.refreshToken, COOKIE_OPTIONS)
+	if (result.refreshToken) {
+		res.clearCookie('refreshToken', { ...COOKIE_OPTIONS, path: '/mizuki/auth' }) // 清理旧版本cookie
+		res.cookie('refreshToken', result.refreshToken, COOKIE_OPTIONS)
+	}
 	res.status(result.code).json({ ...result, refreshToken: undefined }) // 长token用cookie传输，不直接返回给前端
 })
 
-router.post('/logout', (req, res) => {
+router.post('/logout', (_req, res) => {
 	res.clearCookie('refreshToken', COOKIE_OPTIONS)
 	res.status(200).json({ code: 200, success: true, message: '退出成功' })
 })

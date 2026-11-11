@@ -1,13 +1,12 @@
 const express = require('express')
 const router = express.Router()
-const { AboutManager } = require('../managers/index.js')
-const am = new AboutManager()
+const { aboutManager: am } = require('../managers/index.js')
 const multer = require('multer')
 const config = require('../config.js')
 const upload = multer({ storage: multer.memoryStorage(), limits: config.MAX_FILE_SIZE })
 
 // 获取about内容
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
 	const result = await am.getContent()
 	res.status(result.code).json(result)
 })

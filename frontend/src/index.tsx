@@ -13,10 +13,10 @@ if (!rootElement) throw new Error('Failed to find the root element')
 applyThemeColor(localStorage.getItem('color_rgb') || defaultTheme)
 
 ReactDOM.createRoot(rootElement).render(
-	<React.StrictMode>
-		<BrowserRouter>
-			<App />
-			<Toaster />
-		</BrowserRouter>
-	</React.StrictMode>
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+      <Toaster />
+    </BrowserRouter>
+  </React.StrictMode>
 )

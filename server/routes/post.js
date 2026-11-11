@@ -1,7 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { PostManager } = require('../managers/index.js')
-const pm = new PostManager()
+const { postManager: pm } = require('../managers/index.js')
 const multer = require('multer')
 const config = require('../config.js')
 const upload = multer({ storage: multer.memoryStorage(), limits: config.MAX_FILE_SIZE })

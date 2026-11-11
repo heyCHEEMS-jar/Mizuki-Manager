@@ -1,10 +1,9 @@
 const express = require('express')
 const router = express.Router()
-const { BuildManager } = require('../managers/index.js')
-const bm = new BuildManager()
+const { buildManager: bm } = require('../managers/index.js')
 
 // 部署
-router.post('/deploy', async (req, res) => {
+router.post('/deploy', async (_req, res) => {
 	res.setHeader('Content-Type', 'text/event-stream')
 	res.setHeader('Cache-Control', 'no-cache')
 	res.setHeader('Connection', 'keep-alive')
@@ -43,7 +42,7 @@ router.get('/', async (req, res) => {
 	})
 })
 
-router.post('/stop', async (req, res) => {
+router.post('/stop', async (_req, res) => {
 	const result = bm.stopProcess()
 	res.status(result.code).json(result)
 })

@@ -1,7 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { AnimeManager } = require('../managers/index.js')
-const am = new AnimeManager()
+const { animeManager: am } = require('../managers/index.js')
 const multer = require('multer')
 const config = require('../config.js')
 const upload = multer({ storage: multer.memoryStorage(), limits: config.MAX_FILE_SIZE })
@@ -13,7 +12,7 @@ router.post('/upload', upload.array('files'), async (req, res) => {
 })
 
 // 获取配置数据
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
 	const result = await am.getConfigData()
 	res.status(result.code).json(result)
 })
