@@ -170,7 +170,7 @@ class AuthManager {
 	verify(token) {
 		if (!token) return { code: 401, success: false, message: '请先登录' }
 		try {
-			const decoded = jwt.verify(token, JWT_SECRET)
+			jwt.verify(token, JWT_SECRET)
 			return { code: 200, success: true }
 		} catch {
 			return { code: 401, success: false, message: '登录凭证无效' }

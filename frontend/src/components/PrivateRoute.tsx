@@ -4,7 +4,7 @@ import { RouteItem } from '../routes/routes'
 
 // 路由守卫
 export function PrivateRoute({ path, element }: RouteItem) {
-	const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-	if (!token && path !== '/login') return <Navigate to="/login" replace />
-	return element
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+  if (!token && path !== '/login') return <Navigate to="/login" replace />
+  return element
 }

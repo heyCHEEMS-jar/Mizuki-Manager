@@ -1,10 +1,9 @@
 const express = require('express')
 const router = express.Router()
-const { FriendManager } = require('../managers/index.js')
-const fm = new FriendManager()
+const { friendManager: fm } = require('../managers/index.js')
 
 // 获取配置数据
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
 	const result = await fm.getConfigData()
 	res.status(result.code).json(result)
 })

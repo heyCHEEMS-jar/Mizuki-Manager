@@ -53,7 +53,7 @@ mizukiRouter.use('/builder', routes.builder)
 mizukiRouter.use('/system', routes.system)
 
 // 404
-mizukiRouter.use((req, res) => {
+mizukiRouter.use((_req, res) => {
 	res.status(404).json({
 		code: 404,
 		success: false,
@@ -72,14 +72,14 @@ app.use('/assets', express.static(path.resolve(config.BASE_PATH, 'src/assets')))
 if (isProd) {
 	const distDir = path.resolve(__dirname, '../frontend/dist')
 	app.use(express.static(distDir))
-	app.use((req, res) => {
+	app.use((_req, res) => {
 		res.sendFile(path.resolve(distDir, 'index.html'), err => {
 			if (err) console.error(err)
 		})
 	})
 }
 
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
 	if (err) console.error(err)
 	res.status(500).json({
 		code: 500,
@@ -91,18 +91,12 @@ app.use((err, req, res, next) => {
 
 app.listen(config.PORT, () => {
 	console.log(`
-    ┌──────────────────────────────────────────────────┐
-    │                                                  │
-    │   Mizuki Manager Server • Online                 │
-    │   Mizuki 后台服务器   • \t在线                   │
-    │                                                  │
-    │   > 端口: ${config.PORT.toString().padEnd(38)} │
-    │   > 环境: ${(process.env.NODE_ENV || 'development').padEnd(38)} │
-    │   > 系统: ${process.platform.padEnd(38)} │
-    │                                                  │
-    │   ${`O(∩_∩)O ~ 运行中...`.padEnd(31)}             │
-    │                                                  │
-    └──────────────────────────────────────────────────┘
-    `)
-	isProd && console.log(`注意: 生产环境下使用后台端口${config.PORT}访问应用`)
+Mizuki Manager
+──────────────
+状态  ● 在线
+端口  ${config.PORT}
+环境  ${process.env.NODE_ENV || 'development'}
+系统  ${process.platform}
+`)
+	isProd && console.log(`生产环境：请通过后台端口 ${config.PORT} 访问应用`)
 })

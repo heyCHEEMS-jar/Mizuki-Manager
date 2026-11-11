@@ -5,30 +5,30 @@ import { openDB, DBInstance } from '../utils/database'
 type ConfigId = 'latest' | 'original_data'
 
 export const useConfigContentDB = () => {
-	const dbRef = useRef<DBInstance>(null)
+  const dbRef = useRef<DBInstance>(null)
 
-	const _getDB = async () => {
-		if (dbRef.current) return dbRef.current
-		const inst = await openDB('config_content_store')
-		dbRef.current = inst
-		return inst
-	}
+  const _getDB = async () => {
+    if (dbRef.current) return dbRef.current
+    const inst = await openDB('config_content_store')
+    dbRef.current = inst
+    return inst
+  }
 
-	const saveCache = async (id: ConfigId, content: string) => {
-		const db = await _getDB()
-		return await db.put({ id, content })
-	}
+  const saveCache = async (id: ConfigId, content: string) => {
+    const db = await _getDB()
+    return await db.put({ id, content })
+  }
 
-	const getCache = async (id: ConfigId) => {
-		const db = await _getDB()
-		const data = await db.getById(id)
-		return data?.content || ''
-	}
+  const getCache = async (id: ConfigId) => {
+    const db = await _getDB()
+    const data = await db.getById(id)
+    return data?.content || ''
+  }
 
-	const clearCache = async (id: ConfigId) => {
-		const db = await _getDB()
-		return await db.put({ id, content: '' })
-	}
+  const clearCache = async (id: ConfigId) => {
+    const db = await _getDB()
+    return await db.put({ id, content: '' })
+  }
 
-	return { saveCache, getCache, clearCache }
+  return { saveCache, getCache, clearCache }
 }

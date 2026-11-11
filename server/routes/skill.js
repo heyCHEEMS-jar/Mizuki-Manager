@@ -1,10 +1,9 @@
 const express = require('express')
 const router = express.Router()
-const { SkillManager } = require('../managers/index.js')
-const sm = new SkillManager()
+const { skillManager: sm } = require('../managers/index.js')
 
 // 获取配置数据
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
 	const result = await sm.getConfigData()
 	res.status(result.code).json(result)
 })

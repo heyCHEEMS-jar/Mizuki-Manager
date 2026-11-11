@@ -1,7 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { AlbumManager } = require('../managers/index.js')
-const am = new AlbumManager()
+const { albumManager: am } = require('../managers/index.js')
 const multer = require('multer')
 const config = require('../config.js')
 const upload = multer({ storage: multer.memoryStorage(), limits: config.MAX_FILE_SIZE })
@@ -10,7 +9,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: config.MAX_FILE
  * @description 相册文件夹
  */
 // 获取相册文件夹列表
-router.get('/folders', async (req, res) => {
+router.get('/folders', async (_req, res) => {
 	const result = await am.getAllFolders()
 	res.status(result.code).json(result)
 })

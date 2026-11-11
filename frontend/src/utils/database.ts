@@ -1,14 +1,14 @@
 type StoreName = 'builder_log_store' | 'about_content_store' | 'config_content_store' | 'post_content_store'
 export interface DBContent {
-	id: number | string
-	content: string
-	timestamp?: number
+  id: number | string
+  content: string
+  timestamp?: number
 }
 
 export interface DBInstance {
-	put: (data: DBContent) => Promise<boolean>
-	getById: (id: string | number) => Promise<DBContent>
-	getAll: () => Promise<DBContent[]>
+  put: (data: DBContent) => Promise<boolean>
+  getById: (id: string | number) => Promise<DBContent>
+  getAll: () => Promise<DBContent[]>
 }
 
 const ALL_STORES: StoreName[] = ['builder_log_store', 'about_content_store', 'config_content_store', 'post_content_store']
@@ -18,62 +18,62 @@ let dbInstance: IDBDatabase | null = null
 
 // 连接数据库
 const _connectDB = (): Promise<IDBDatabase> => {
-	if (dbInstance) return Promise.resolve(dbInstance)
-	return new Promise((resolve, reject) => {
-		const req = indexedDB.open(DB_NAME, DB_VERSION)
-		req.onupgradeneeded = (ev) => {
-			const db = (ev?.target as IDBOpenDBRequest)?.result
-			ALL_STORES.forEach((name) => {
-				if (!db.objectStoreNames.contains(name)) {
-					db.createObjectStore(name, { keyPath: 'id', autoIncrement: true })
-				}
-			})
-		}
-		req.onsuccess = (ev) => {
-			dbInstance = (ev?.target as IDBOpenDBRequest)?.result
-			resolve(dbInstance)
-		}
-		req.onerror = (ev) => {
-			reject((ev?.target as IDBOpenDBRequest)?.error)
-		}
-	})
+  if (dbInstance) return Promise.resolve(dbInstance)
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    req.onupgradeneeded = ev => {
+      const db = (ev?.target as IDBOpenDBRequest)?.result
+      ALL_STORES.forEach(name => {
+        if (!db.objectStoreNames.contains(name)) {
+          db.createObjectStore(name, { keyPath: 'id', autoIncrement: true })
+        }
+      })
+    }
+    req.onsuccess = ev => {
+      dbInstance = (ev?.target as IDBOpenDBRequest)?.result
+      resolve(dbInstance)
+    }
+    req.onerror = ev => {
+      reject((ev?.target as IDBOpenDBRequest)?.error)
+    }
+  })
 }
 
 export const openDB = async (storeName: StoreName): Promise<DBInstance> => {
-	const db = await _connectDB()
+  const db = await _connectDB()
 
-	const put = (data: DBContent): Promise<boolean> => {
-		return new Promise((resolve, reject) => {
-			const transaction = db.transaction(storeName, 'readwrite')
-			const store = transaction.objectStore(storeName)
+  const put = (data: DBContent): Promise<boolean> => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite')
+      const store = transaction.objectStore(storeName)
 
-			const req = store.put({ ...data, timestamp: Date.now() })
-			req.onsuccess = () => resolve(true)
-			req.onerror = () => reject(req.error)
-		})
-	}
+      const req = store.put({ ...data, timestamp: Date.now() })
+      req.onsuccess = () => resolve(true)
+      req.onerror = () => reject(req.error)
+    })
+  }
 
-	const getById = (id: string | number): Promise<DBContent> => {
-		return new Promise((resolve, reject) => {
-			const transaction = db.transaction(storeName, 'readonly')
-			const store = transaction.objectStore(storeName)
+  const getById = (id: string | number): Promise<DBContent> => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readonly')
+      const store = transaction.objectStore(storeName)
 
-			const req = store.get(id)
-			req.onsuccess = () => resolve(req.result)
-			req.onerror = () => reject(req.error)
-		})
-	}
+      const req = store.get(id)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+  }
 
-	const getAll = (): Promise<DBContent[]> => {
-		return new Promise((resolve, reject) => {
-			const transaction = db.transaction(storeName, 'readonly')
-			const store = transaction.objectStore(storeName)
+  const getAll = (): Promise<DBContent[]> => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readonly')
+      const store = transaction.objectStore(storeName)
 
-			const req = store.getAll()
-			req.onsuccess = () => resolve(req.result)
-			req.onerror = () => reject(req.error)
-		})
-	}
+      const req = store.getAll()
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+  }
 
-	return { put, getById, getAll }
+  return { put, getById, getAll }
 }

@@ -7,135 +7,134 @@ const webpack = require('webpack')
 const isProd = process.env.NODE_ENV === 'production'
 
 module.exports = {
-	mode: process.env.NODE_ENV || 'development',
-	entry: './src/index.tsx',
-	module: {
-		rules: [
-			{
-				test: /\.m?js$/,
-				resolve: { fullySpecified: false }
-			},
-			{
-				test: /\.[jt]sx?$/,
-				exclude: /node_modules/,
-				loader: 'esbuild-loader',
-				options: {
-					loader: 'tsx',
-					target: 'esnext',
-					jsx: 'automatic',
-					sourcemap: !isProd
-				}
-			},
-			{
-				test: /\.css$/,
-				use: [isProd ? MiniCssExtractPlugin.loader : 'style-loader', 'css-loader', 'postcss-loader']
-			}
-		]
-	},
-	resolve: {
-		extensions: ['.tsx', '.ts', '.jsx', '.js'],
-		alias: {
-			'@': path.resolve(__dirname, 'src')
-		}
-	},
-	optimization: {
-		minimize: isProd,
-		minimizer: [
-			new EsbuildPlugin(
-				isProd
-					? {
-						target: 'esnext',
-						css: true,
-						jsx: 'automatic',
-						minify: true,
-						minifyWhitespace: true,
-						minifyIdentifiers: true,
-						minifySyntax: true,
-						drop: ['console', 'debugger'],
-						dropLabels: ['unused'],
-						ignoreAnnotations: true,
-						legalComments: 'none',
-						treeShaking: true
-					}
-					: {}
-			)
-		],
-		splitChunks: { chunks: 'all', minSize: 30000, maxSize: 244000 }
-	},
-	output: {
-		filename: '[name].[contenthash:8].chunk.js',
-		path: path.resolve(__dirname, 'dist'),
-		clean: true
-	},
-	plugins: [
-		new webpack.DefinePlugin({
-			'process.env': JSON.stringify(process.env)
-		}),
-		new HtmlWebpackPlugin({
-			template: './public/index.html',
-			templateParameters: { PUBLIC_URL: '' },
-			filename: 'index.html',
-			publicPath: '/',
-			minify: isProd && {
-				removeComments: true,
-				collapseWhitespace: true,
-				collapseInlineTagWhitespace: true,
-				conservativeCollapse: true,
-				preserveLineBreaks: true,
-				removeAttributeQuotes: true,
-				removeEmptyAttributes: true,
-				removeOptionalTags: true,
-				removeRedundantAttributes: true,
-				removeScriptTypeAttributes: true,
-				removeStyleLinkTypeAttributes: true,
-				trimCustomFragments: true,
-				sortAttributes: true,
-				sortClassName: true,
-				minifyJS: true,
-				minifyCSS: true,
-				minifyURLs: true
-			}
-		}),
-		new MiniCssExtractPlugin({
-			filename: '[name].[contenthash:8].chunk.css'
-		})
-	],
-	performance: {
-		hints: false
-	},
-	stats: 'errors-warnings',
-	devServer: {
-		compress: false,
-		port: process.env.FRONTEND_DEV_PORT || 3000,
-		open: false,
-		hot: true,
-		historyApiFallback: {
-			disableDotRule: true // 允许路径包含.符号
-		},
-		static: [
-			{
-				directory: path.resolve(process.env.BASE_PATH, 'public'), // 注意这是博客根目录下的public
-				publicPath: '/',
-				watch: false
-			},
-			{
-				directory: path.resolve(process.env.BASE_PATH, 'src/assets'), // 注意这是博客根目录下的src
-				publicPath: '/assets',
-				watch: false
-			},
-			{
-				directory: path.resolve(__dirname, 'public'),
-				publicPath: '/',
-				watch: false
-			}
-		],
-		proxy: [
-			{
-				context: ['/mizuki'],
-				target: `http://localhost:${process.env.PORT || 3001}`,
-				changeOrigin: true,
-				secure: false
-			}
-		]
-	}
+  mode: process.env.NODE_ENV || 'development',
+  entry: './src/index.tsx',
+  module: {
+    rules: [
+      {
+        test: /\.m?js$/,
+        resolve: { fullySpecified: false }
+      },
+      {
+        test: /\.[jt]sx?$/,
+        exclude: /node_modules/,
+        loader: 'esbuild-loader',
+        options: {
+          target: 'esnext',
+          jsx: 'automatic',
+          sourcemap: !isProd
+        }
+      },
+      {
+        test: /\.css$/,
+        use: [isProd ? MiniCssExtractPlugin.loader : 'style-loader', 'css-loader', 'postcss-loader']
+      }
+    ]
+  },
+  resolve: {
+    extensions: ['.tsx', '.ts', '.jsx', '.js'],
+    alias: {
+      '@': path.resolve(__dirname, 'src')
+    }
+  },
+  optimization: {
+    minimize: isProd,
+    minimizer: [
+      new EsbuildPlugin(
+        isProd
+          ? {
+              target: 'esnext',
+              css: true,
+              jsx: 'automatic',
+              minify: true,
+              minifyWhitespace: true,
+              minifyIdentifiers: true,
+              minifySyntax: true,
+              drop: ['console', 'debugger'],
+              dropLabels: ['unused'],
+              ignoreAnnotations: true,
+              legalComments: 'none',
+              treeShaking: true
+            }
+          : {}
+      )
+    ],
+    splitChunks: { chunks: 'all', minSize: 30000, maxSize: 244000 }
+  },
+  output: {
+    filename: '[name].[contenthash:8].chunk.js',
+    path: path.resolve(__dirname, 'dist'),
+    clean: true
+  },
+  plugins: [
+    new webpack.DefinePlugin({
+      'process.env': JSON.stringify(process.env)
+    }),
+    new HtmlWebpackPlugin({
+      template: './public/index.html',
+      templateParameters: { PUBLIC_URL: '' },
+      filename: 'index.html',
+      publicPath: '/',
+      minify: isProd && {
+        removeComments: true,
+        collapseWhitespace: true,
+        collapseInlineTagWhitespace: true,
+        conservativeCollapse: true,
+        preserveLineBreaks: true,
+        removeAttributeQuotes: true,
+        removeEmptyAttributes: true,
+        removeOptionalTags: true,
+        removeRedundantAttributes: true,
+        removeScriptTypeAttributes: true,
+        removeStyleLinkTypeAttributes: true,
+        trimCustomFragments: true,
+        sortAttributes: true,
+        sortClassName: true,
+        minifyJS: true,
+        minifyCSS: true,
+        minifyURLs: true
+      }
+    }),
+    new MiniCssExtractPlugin({
+      filename: '[name].[contenthash:8].chunk.css'
+    })
+  ],
+  performance: {
+    hints: false
+  },
+  stats: 'errors-warnings',
+  devServer: {
+    compress: false,
+    port: process.env.FRONTEND_DEV_PORT || 3000,
+    open: false,
+    hot: true,
+    historyApiFallback: {
+      disableDotRule: true // 允许路径包含.符号
+    },
+    static: [
+      {
+        directory: path.resolve(process.env.BASE_PATH, 'public'), // 注意这是博客根目录下的public
+        publicPath: '/',
+        watch: false
+      },
+      {
+        directory: path.resolve(process.env.BASE_PATH, 'src/assets'), // 注意这是博客根目录下的src
+        publicPath: '/assets',
+        watch: false
+      },
+      {
+        directory: path.resolve(__dirname, 'public'),
+        publicPath: '/',
+        watch: false
+      }
+    ],
+    proxy: [
+      {
+        context: ['/mizuki'],
+        target: `http://localhost:${process.env.PORT || 3001}`,
+        changeOrigin: true,
+        secure: false
+      }
+    ]
+  }
 }

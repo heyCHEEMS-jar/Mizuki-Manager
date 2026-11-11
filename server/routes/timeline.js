@@ -1,10 +1,9 @@
 const express = require('express')
 const router = express.Router()
-const { TimelineManager } = require('../managers/index.js')
-const tm = new TimelineManager()
+const { timelineManager: tm } = require('../managers/index.js')
 
 // 获取配置数据
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
 	const result = await tm.getConfigData()
 	res.status(result.code).json(result)
 })

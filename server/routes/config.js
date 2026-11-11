@@ -1,13 +1,12 @@
 const express = require('express')
 const router = express.Router()
-const { ConfigManager } = require('../managers/index.js')
-const cm = new ConfigManager()
+const { configManager: cm } = require('../managers/index.js')
 const multer = require('multer')
 const config = require('../config.js')
 const upload = multer({ storage: multer.memoryStorage(), limits: config.MAX_FILE_SIZE })
 
 // 获取配置数据
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
 	const result = await cm.getConfigData()
 	res.status(result.code).json(result)
 })
