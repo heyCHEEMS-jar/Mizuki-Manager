@@ -5,7 +5,7 @@
 <br />
 
 <div align="center">
-  <img src="./frontend/public/logo192.png" width="96" alt="Mizuki Manager Logo" />
+  <img src="https://react.dev/favicon.ico" width="96" alt="Mizuki Manager Logo" />
   <h1>Mizuki Manager</h1>
   <p>面向 <a href="https://github.com/LyraVoid/Mizuki">Mizuki</a> 静态博客的可视化内容管理与构建部署工具。</p>
 
