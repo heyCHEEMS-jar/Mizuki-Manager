@@ -2,7 +2,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { notify as message } from '../lib/notify'
 import i18n from '../i18n'
 import { redirectToLogin } from './util'
-import { refreshToken, SESSION_CONFLICT_CODE, SESSION_CONFLICT_EVENT } from './request'
+import { getResponseMessage, refreshToken, SESSION_CONFLICT_CODE, SESSION_CONFLICT_EVENT } from './request'
 import { RefObject } from 'react'
 type MethodType = 'GET' | 'POST' | 'PUT' | 'DELETE'
 interface SSEParams {
@@ -17,10 +17,22 @@ interface SSEParams {
   controllerRef?: RefObject<AbortController> // 外部传入的AbortController引用,用于外部中断请求
 }
 interface Data {
-  code: number
+  code?: number
   success?: boolean
-  message: string
+  message?: string
+  log?: string
+  logEntries?: Data[]
+  isHistory?: boolean
+  i18nKey?: string
+  i18nParams?: Record<string, unknown>
 }
+
+const localizeData = (data: Data) => ({ ...data, message: getResponseMessage(data) })
+const localizeLog = (data: Data) => (data.i18nKey && i18n.exists(data.i18nKey) ? getResponseMessage(data) : data.log || '')
+const localizeLogData = (data: Data) => ({
+  ...data,
+  log: data.logEntries ? data.logEntries.map(localizeLog).join('') : localizeLog(data)
+})
 
 export const createSSE = (params: SSEParams, retryCount: number = 0) => {
   const { url, method = 'POST', headers = {}, body, openWhenHidden = true, onMessage, onDone = () => {}, onError = () => {}, controllerRef } = params
@@ -60,11 +72,11 @@ export const createSSE = (params: SSEParams, retryCount: number = 0) => {
       if (!res.ok || contentType?.includes('application/json')) {
         const errData = await res.json()
         if (errData.code === SESSION_CONFLICT_CODE) {
-          window.dispatchEvent(new CustomEvent(SESSION_CONFLICT_EVENT, { detail: errData.message }))
+          window.dispatchEvent(new CustomEvent(SESSION_CONFLICT_EVENT, { detail: getResponseMessage(errData) }))
           controllerRef?.current.abort()
           return
         }
-        onError(errData)
+        onError(localizeData(errData))
         controllerRef?.current.abort()
         return
       }
@@ -73,20 +85,20 @@ export const createSSE = (params: SSEParams, retryCount: number = 0) => {
     onmessage(msg) {
       const data: Data = JSON.parse(msg.data)
       if (data.success === true) {
-        onDone(data)
+        onDone(data.i18nKey ? localizeData(data) : data)
         controllerRef?.current.abort()
         return
       }
       if (data.success === false) {
-        onError(data)
+        onError(localizeData(data))
         controllerRef?.current.abort()
         return
       }
-      onMessage(data)
+      onMessage(localizeLogData(data))
     },
     onerror(err) {
       console.error(err)
-      message.error(err.message || i18n.t('notifications.connectionError'))
+      message.error(i18n.t('notifications.connectionError'))
     }
   })
 }

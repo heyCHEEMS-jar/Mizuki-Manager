@@ -21,9 +21,13 @@ export default function About() {
     try {
       setLoading(true)
       const res = await getAboutContent()
-      if (res.data) setContent(res.data)
-      else throw new Error('未从响应中获取到 About 内容')
+      if (res.data) {
+        setContent(res.data)
+        return true
+      }
+      return false
     } catch {
+      return false
     } finally {
       setLoading(false)
     }
@@ -41,7 +45,7 @@ export default function About() {
   }, [])
 
   const reloadContent = useCallback(async () => {
-    await getContent()
+    if (!(await getContent())) return
     await db.clearCache()
     setShowReload(false)
   }, [getContent])

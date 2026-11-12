@@ -38,6 +38,7 @@ class PostManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '获取所有文章失败',
+				i18nKey: 'api.post.listFailed',
 				error: err
 			}
 		}
@@ -49,7 +50,8 @@ class PostManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件'
+					message: '请传入正确的文件',
+					i18nKey: 'api.file.invalid'
 				}
 			const content = await readFile(this.postsDir, filename)
 			return {
@@ -62,6 +64,7 @@ class PostManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '文件读取失败',
+				i18nKey: 'api.file.readFailed',
 				error: err
 			}
 		}
@@ -73,19 +76,22 @@ class PostManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件'
+					message: '请传入正确的文件',
+					i18nKey: 'api.file.invalid'
 				}
 			if (!content)
 				return {
 					code: 400,
 					success: false,
-					message: '新内容不能为空'
+					message: '新内容不能为空',
+					i18nKey: 'api.content.required'
 				}
 			if (!(await fileExists(this.postsDir, filename)))
 				return {
 					code: 404,
 					success: false,
-					message: '文件不存在'
+					message: '文件不存在',
+					i18nKey: 'api.file.notFound'
 				}
 			await writeFile(this.postsDir, filename, content)
 			return {
@@ -97,6 +103,7 @@ class PostManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '修改失败',
+				i18nKey: 'api.common.updateFailed',
 				error: err
 			}
 		}
@@ -108,19 +115,22 @@ class PostManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件'
+					message: '请传入正确的文件',
+					i18nKey: 'api.file.invalid'
 				}
 			if (!content)
 				return {
 					code: 400,
 					success: false,
-					message: '新内容不能为空'
+					message: '新内容不能为空',
+					i18nKey: 'api.content.required'
 				}
 			if (await fileExists(this.postsDir, filename))
 				return {
 					code: 400,
 					success: false,
-					message: '当前名称的文件已存在'
+					message: '当前名称的文件已存在',
+					i18nKey: 'api.file.alreadyExists'
 				}
 			await writeFile(this.postsDir, filename, content)
 			return {
@@ -136,6 +146,7 @@ class PostManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '添加失败',
+				i18nKey: 'api.post.createFailed',
 				error: err
 			}
 		}
@@ -151,19 +162,22 @@ class PostManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件'
+					message: '请传入正确的文件',
+					i18nKey: 'api.file.invalid'
 				}
 			if (!isMarkdown(filename))
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件'
+					message: '请传入正确的文件',
+					i18nKey: 'api.file.markdownFilenameRequired'
 				}
 			if (!(await fileExists(this.postsDir, filename)))
 				return {
 					code: 404,
 					success: false,
-					message: '文件不存在'
+					message: '文件不存在',
+					i18nKey: 'api.file.notFound'
 				}
 			await deleteFile(this.postsDir, filename)
 			this.total--
@@ -179,6 +193,7 @@ class PostManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '删除失败',
+				i18nKey: 'api.common.deleteFailed',
 				error: err
 			}
 		}
@@ -190,32 +205,38 @@ class PostManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件名'
+					message: '请传入正确的文件名',
+					i18nKey: 'api.file.invalidName'
 				}
 			if (typeof newName !== 'string' || !newName)
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的新文件名'
+					message: '请传入正确的新文件名',
+					i18nKey: 'api.file.invalidNewName'
 				}
 			if (!isMarkdown(filename))
 				return {
 					code: 400,
 					success: false,
-					message: '请传入.md格式的文件名'
+					message: '请传入.md格式的文件名',
+					i18nKey: 'api.file.markdownFilenameRequired'
 				}
 			if (!isLegalFilename(newName))
 				return {
 					code: 400,
 					success: false,
-					message: '文章名称不能有特殊符号, 长度最大为100个字符'
+					message: '文章名称不能有特殊符号, 长度最大为100个字符',
+					i18nKey: 'api.post.invalidNamePattern',
+					i18nParams: { maxLength: 100 }
 				}
 			newName += '.md'
 			if (!(await fileExists(config.POSTS_DIR, filename))) {
 				return {
 					code: 404,
 					success: false,
-					message: '未找到该文件'
+					message: '未找到该文件',
+					i18nKey: 'api.file.notFound'
 				}
 			}
 			const oldFilePath = path.resolve(config.POSTS_DIR, filename)
@@ -233,6 +254,7 @@ class PostManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '重命名失败',
+				i18nKey: 'api.common.renameFailed',
 				error: err
 			}
 		}

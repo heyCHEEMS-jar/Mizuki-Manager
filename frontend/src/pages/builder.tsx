@@ -1,12 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import i18n from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { CircleAlert, CircleStop, Rocket, Trash2, X } from 'lucide-react'
 import { Page, PageHeader, PageSection } from '../components/Page'
 import { Button, ConfirmDialog } from '../components/ui'
 import { notify } from '../lib/notify'
 import { deployProjectSSE, stopDeployProcess, syncDeployStatus } from '../services/builder'
-import { useBuilderLogDB } from '../hooks/useBuilderLogDB'
+import { limitBuilderLog, useBuilderLogDB } from '../hooks/useBuilderLogDB'
 import type { LogWorkerResponse } from '../utils/ansi-log.worker'
 
 export default function Builder() {
@@ -54,15 +53,17 @@ export default function Builder() {
     pendingLogRef.current = ''
     if (!log) return
 
-    rawLogRef.current += log
-    workerRef.current?.postMessage({ type: 'append', log })
+    const combinedLog = rawLogRef.current + log
+    const nextLog = limitBuilderLog(combinedLog)
+    rawLogRef.current = nextLog
+    workerRef.current?.postMessage(nextLog.length < combinedLog.length ? { type: 'replace', log: nextLog } : { type: 'append', log })
     scheduleSave()
   }, [scheduleSave])
 
   const appendLog = useCallback(
     (log: string) => {
       if (!log) return
-      pendingLogRef.current += log
+      pendingLogRef.current = limitBuilderLog(pendingLogRef.current + log)
       if (frameRef.current === null) frameRef.current = requestAnimationFrame(flushPendingLog)
     },
     [flushPendingLog]
@@ -73,8 +74,9 @@ export default function Builder() {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
       frameRef.current = null
       pendingLogRef.current = ''
-      rawLogRef.current = log
-      workerRef.current?.postMessage({ type: 'replace', log })
+      const nextLog = limitBuilderLog(log)
+      rawLogRef.current = nextLog
+      workerRef.current?.postMessage({ type: 'replace', log: nextLog })
       if (save) scheduleSave()
     },
     [scheduleSave]
@@ -89,11 +91,11 @@ export default function Builder() {
         else appendLog(newLog)
       },
       onDone: (data: any) => {
-        if (data?.message) appendLog(data.message === '无运行中的任务' ? t('fields.noRunningTask') : data.message)
+        if (data?.message) appendLog(t('buildLogs.systemMessage', { message: data.message }))
         setLoading(false)
       },
       onError: (err: any) => {
-        appendLog(err?.message || `\n[Error] ${err}\n`)
+        appendLog(t('buildLogs.errorMessage', { message: err?.message || t('notifications.requestFailed') }))
         setLoading(false)
         console.error(err)
       }
@@ -112,8 +114,8 @@ export default function Builder() {
   const clearLogCache = async () => {
     replaceLog('', false)
     const res = await logDB.clearCache()
-    if (res) notify.success(i18n.t('notifications.clearLogSuccess'))
-    else notify.error(i18n.t('notifications.clearFailed'))
+    if (res) notify.success(t('notifications.clearLogSuccess'))
+    else notify.error(t('notifications.clearFailed'))
   }
 
   // 取消部署
@@ -123,8 +125,8 @@ export default function Builder() {
       ctrlRef.current?.abort()
       const res = await stopDeployProcess()
       if (res.success) {
-        notify.success(i18n.t('notifications.deployStopped'))
-        appendLog('\n[System] 已终止部署子进程\n')
+        notify.success(t('notifications.deployStopped'))
+        appendLog(t('buildLogs.systemMessage', { message: t('notifications.deployStopped') }))
       }
     } catch {
     } finally {
@@ -154,7 +156,7 @@ export default function Builder() {
     void logDB
       .getCache()
       .catch(err => {
-        console.error('读取构建日志缓存失败', err)
+        console.error(err)
         return ''
       })
       .then(savedLog => {
@@ -171,7 +173,7 @@ export default function Builder() {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
       if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current)
       if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current)
-      if (initedRef.current) void logDB.saveCache(rawLogRef.current + pendingLogRef.current)
+      if (initedRef.current) void logDB.saveCache(limitBuilderLog(rawLogRef.current + pendingLogRef.current))
       worker.terminate()
       workerRef.current = null
     }
@@ -180,7 +182,7 @@ export default function Builder() {
   return (
     <Page className="flex min-h-screen flex-col">
       <PageHeader
-        eyebrow="Deployment"
+        eyebrow={t('fields.deploymentEyebrow')}
         title={t('pages.builder.title')}
         description={t('pages.builder.description')}
         actions={

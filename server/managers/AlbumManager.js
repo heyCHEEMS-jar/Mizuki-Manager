@@ -37,6 +37,7 @@ class AlbumManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '获取失败',
+				i18nKey: 'api.common.fetchFailed',
 				error: err
 			}
 		}
@@ -49,7 +50,8 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件夹名'
+					message: '请传入正确的文件夹名',
+					i18nKey: 'api.album.invalidFolderName'
 				}
 			const folderPath = path.resolve(this.albumsDir, name)
 			const relativePath = path.relative(this.albumsDir, folderPath)
@@ -57,14 +59,16 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件夹名'
+					message: '请传入正确的文件夹名',
+					i18nKey: 'api.album.invalidFolderName'
 				}
 			// 创建相册配置文件info.json
 			if (await ensureDirExist(folderPath)) {
 				return {
 					code: 409,
 					success: false,
-					message: '该目录已存在'
+					message: '该目录已存在',
+					i18nKey: 'api.directory.alreadyExists'
 				}
 			}
 			await writeFile(folderPath, this.infoFilename, JSON.stringify(config.ALBUM_DEFAULT_INFO, null, 2))
@@ -80,6 +84,7 @@ class AlbumManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '创建失败',
+				i18nKey: 'api.common.createFailed',
 				error: err
 			}
 		}
@@ -91,7 +96,8 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件夹路径'
+					message: '请传入正确的文件夹路径',
+					i18nKey: 'api.album.invalidFolderPath'
 				}
 			const absolutePath = path.resolve(folderPath)
 			await fs.promises.rm(absolutePath, {
@@ -107,6 +113,7 @@ class AlbumManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '删除失败',
+				i18nKey: 'api.common.deleteFailed',
 				error: err
 			}
 		}
@@ -118,19 +125,23 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件夹路径'
+					message: '请传入正确的文件夹路径',
+					i18nKey: 'api.album.invalidFolderPath'
 				}
 			if (typeof newName !== 'string' || !newName)
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的新文件名'
+					message: '请传入正确的新文件名',
+					i18nKey: 'api.file.invalidNewName'
 				}
 			if (!isLegalFilename(newName))
 				return {
 					code: 400,
 					success: false,
-					message: '文件名不能有特殊符号, 长度最大为100个字符'
+					message: '文件名不能有特殊符号, 长度最大为100个字符',
+					i18nKey: 'api.file.invalidNamePattern',
+					i18nParams: { maxLength: 100 }
 				}
 			if (
 				!(await ensureDirExist(folderPath, {
@@ -140,7 +151,8 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 404,
 					success: false,
-					message: '未找到该目录'
+					message: '未找到该目录',
+					i18nKey: 'api.directory.notFound'
 				}
 			}
 			const newFolderPath = path.resolve(config.ALBUMS_DIR, newName)
@@ -157,6 +169,7 @@ class AlbumManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '重命名失败',
+				i18nKey: 'api.common.renameFailed',
 				error: err
 			}
 		}
@@ -173,19 +186,22 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的pageNum'
+					message: '请传入正确的pageNum',
+					i18nKey: 'api.pagination.invalidPageNumber'
 				}
 			if (pageSize === undefined)
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的pageSize'
+					message: '请传入正确的pageSize',
+					i18nKey: 'api.pagination.invalidPageSize'
 				}
 			if (typeof folderPath !== 'string' || !folderPath)
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件夹路径'
+					message: '请传入正确的文件夹路径',
+					i18nKey: 'api.album.invalidFolderPath'
 				}
 			const files = []
 			const allFilenames = await fs.promises.readdir(folderPath) // 所有文件
@@ -227,6 +243,7 @@ class AlbumManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '获取失败',
+				i18nKey: 'api.common.fetchFailed',
 				error: err
 			}
 		}
@@ -237,7 +254,8 @@ class AlbumManager extends BaseManager {
 			return {
 				code: 400,
 				success: false,
-				message: `请传入正确的文件夹路径`
+				message: `请传入正确的文件夹路径`,
+				i18nKey: 'api.album.invalidFolderPath'
 			}
 		const absolutePath = path.resolve(folderPath)
 		return await super.uploadFiles(absolutePath, files, file => isImage(file.originalname))
@@ -249,7 +267,8 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件路径'
+					message: '请传入正确的文件路径',
+					i18nKey: 'api.file.invalidPaths'
 				}
 			const tasks = []
 			for (const filePath of filePaths) {
@@ -266,6 +285,8 @@ class AlbumManager extends BaseManager {
 					code: 500,
 					success: false,
 					message: `删除失败: ${errors.map(({ filePath }) => filePath).join('、')}`,
+					i18nKey: 'api.file.deleteFailedWithPaths',
+					i18nParams: { filePaths: errors.map(({ filePath }) => filePath).join('、') },
 					error: errors
 				}
 			return {
@@ -277,6 +298,7 @@ class AlbumManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '删除失败',
+				i18nKey: 'api.common.deleteFailed',
 				error: err
 			}
 		}
@@ -293,7 +315,8 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件夹路径'
+					message: '请传入正确的文件夹路径',
+					i18nKey: 'api.album.invalidFolderPath'
 				}
 			const absolutePath = path.resolve(folderPath)
 			try {
@@ -311,7 +334,8 @@ class AlbumManager extends BaseManager {
 						code: 200,
 						success: true,
 						data: '',
-						message: '配置文件不存在, 已自动创建'
+						message: '配置文件不存在, 已自动创建',
+						i18nKey: 'api.config.infoAutoCreated'
 					}
 				}
 				throw err
@@ -321,6 +345,7 @@ class AlbumManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '获取失败',
+				i18nKey: 'api.common.fetchFailed',
 				error: err
 			}
 		}
@@ -332,13 +357,15 @@ class AlbumManager extends BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入正确的文件夹路径'
+					message: '请传入正确的文件夹路径',
+					i18nKey: 'api.album.invalidFolderPath'
 				}
 			if (!content)
 				return {
 					code: 400,
 					success: false,
-					message: '新内容不能为空'
+					message: '新内容不能为空',
+					i18nKey: 'api.content.required'
 				}
 			const absolutePath = path.resolve(folderPath)
 			await writeFile(absolutePath, this.infoFilename, content)
@@ -351,6 +378,7 @@ class AlbumManager extends BaseManager {
 				code: 500,
 				success: false,
 				message: '修改失败',
+				i18nKey: 'api.common.updateFailed',
 				error: err
 			}
 		}

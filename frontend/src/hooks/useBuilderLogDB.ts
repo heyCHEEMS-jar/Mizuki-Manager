@@ -1,6 +1,9 @@
 import { useCallback, useMemo, useRef } from 'react'
 import { openDB, DBInstance } from '../utils/database'
 
+export const BUILDER_LOG_MAX_LENGTH = 200_000
+export const limitBuilderLog = (log: string) => (log.length > BUILDER_LOG_MAX_LENGTH ? log.slice(-BUILDER_LOG_MAX_LENGTH) : log)
+
 export const useBuilderLogDB = () => {
   const dbRef = useRef<DBInstance>(null)
 
@@ -14,7 +17,7 @@ export const useBuilderLogDB = () => {
   const saveCache = useCallback(
     async (content: string) => {
       const db = await getDB()
-      return db.put({ id: 'latest', content })
+      return db.put({ id: 'latest', content: limitBuilderLog(content) })
     },
     [getDB]
   )
@@ -22,7 +25,10 @@ export const useBuilderLogDB = () => {
   const getCache = useCallback(async () => {
     const db = await getDB()
     const data = await db.getById('latest')
-    return data?.content || ''
+    const content = typeof data?.content === 'string' ? data.content : ''
+    const limitedContent = limitBuilderLog(content)
+    if (limitedContent !== content) await db.put({ id: 'latest', content: limitedContent })
+    return limitedContent
   }, [getDB])
 
   const clearCache = useCallback(async () => {

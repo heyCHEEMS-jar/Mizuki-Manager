@@ -26,7 +26,8 @@ app.use('/mizuki', (req, res, next) => {
 		return res.status(403).json({
 			code: 403,
 			success: false,
-			message: '非法路径访问'
+			message: '非法路径访问',
+			i18nKey: 'api.security.illegalPath'
 		})
 	}
 	next()
@@ -58,6 +59,7 @@ mizukiRouter.use((_req, res) => {
 		code: 404,
 		success: false,
 		message: '无效的资源路径',
+		i18nKey: 'api.route.notFound',
 		error: 'Route not found'
 	})
 })
@@ -85,6 +87,7 @@ app.use((err, _req, res, _next) => {
 		code: 500,
 		success: false,
 		message: '服务器内部错误',
+		i18nKey: 'api.server.internalError',
 		error: 'Internal Server Error'
 	})
 })
