@@ -40,32 +40,48 @@ Mizuki Manager 直接管理服务器上的 Mizuki 项目文件，为不希望频
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/01-login.png" alt="登录界面" width="100%" /><br />
+      <img src="./docs/images/showcase/01-login.webp" alt="登录界面" width="100%" /><br />
       <sub>登录界面</sub>
     </td>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/02-dashboard.png" alt="管理首页" width="100%" /><br />
+      <img src="./docs/images/showcase/02-dashboard.webp" alt="管理首页" width="100%" /><br />
       <sub>管理首页</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/03-posts.png" alt="文章管理" width="100%" /><br />
-      <sub>文章管理</sub>
+      <img src="./docs/images/showcase/03-about.webp" alt="关于页面" width="100%" /><br />
+      <sub>关于页面</sub>
     </td>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/04-markdown-editor.png" alt="Markdown 编辑器" width="100%" /><br />
-      <sub>Markdown 编辑器</sub>
+      <img src="./docs/images/showcase/04-album.webp" alt="相册管理" width="100%" /><br />
+      <sub>相册管理</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/05-config.png" alt="配置管理" width="100%" /><br />
+      <img src="./docs/images/showcase/05-album-settings.webp" alt="相册设置" width="100%" /><br />
+      <sub>相册设置</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/05-builder.webp" alt="构建部署" width="100%" /><br />
+      <sub>构建部署</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/06-configuration.webp" alt="配置管理" width="100%" /><br />
       <sub>配置管理</sub>
     </td>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/06-builder.png" alt="构建部署" width="100%" /><br />
-      <sub>构建部署</sub>
+      <img src="./docs/images/showcase/07-posts.webp" alt="文章管理" width="100%" /><br />
+      <sub>文章管理</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="./docs/images/showcase/08-markdown-editor.webp" alt="Markdown 编辑器" width="50%" /><br />
+      <sub>Markdown 编辑器</sub>
     </td>
   </tr>
 </table>
