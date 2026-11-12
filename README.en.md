@@ -33,7 +33,8 @@ For the simplest deployment, run Mizuki Manager on the same server as the Mizuki
 - **Asset management** for images, audio, and other static blog resources.
 - **Build and deployment** controls with real-time build logs.
 - **Authentication** using JWTs, refresh-token cookies, CAPTCHA, and single-session control.
-- **Responsive UI** built with React, Tailwind CSS, and Radix UI for desktop and mobile use.
+- **Responsive UI** built with React 19, TypeScript, React Router, Tailwind CSS 4, shadcn/ui, and Radix UI for desktop and mobile use.
+- **Multilingual support** with built-in Simplified Chinese and English interfaces and instant language switching.
 
 ## Screenshots
 
@@ -105,7 +106,7 @@ In development, the frontend runs on port `3000` and the API runs on port `3001`
 
 | Layer | Technologies |
 | --- | --- |
-| Frontend | React 19, TypeScript, React Router, Tailwind CSS 4, Radix UI |
+| Frontend | React 19, TypeScript, React Router, Tailwind CSS 4, shadcn/ui, Radix UI |
 | Markdown | `@uiw/react-md-editor` |
 | Build | Webpack 5, esbuild-loader, PostCSS |
 | Backend | Node.js, Express 5 |

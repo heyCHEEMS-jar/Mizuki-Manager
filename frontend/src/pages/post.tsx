@@ -86,7 +86,7 @@ function PostList() {
   return (
     <Page>
       <PageHeader
-        eyebrow={t('fields.contentEyebrow')}
+        eyebrow="Content"
         title={t('pages.post.title')}
         description={t('pages.post.description')}
         actions={
@@ -349,7 +349,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
   return (
     <Page>
       <PageHeader
-        eyebrow={t('fields.postEyebrow')}
+        eyebrow="Post"
         title={pageTitle}
         description={isNewRef.current ? t('fields.newPostDescription') : filenameRef.current.replace('.md', '')}
         actions={
