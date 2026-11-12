@@ -62,6 +62,27 @@ class BuildManager {
 		this.execCallback('log', entry)
 		onLog(entry)
 	}
+	_installDependencies(onLog) {
+		this._emitLog(
+			{
+				log: '\n[System] 正在安装更新依赖...\n',
+				i18nKey: 'buildLogs.installing'
+			},
+			onLog
+		)
+
+		const [cmd, ...args] = this.installCommand.split(' ')
+		const process = this.isWindows
+			? spawn('cmd.exe', ['/c', this.installCommand], { cwd: this.basePath, stdio: 'pipe', windowsHide: true })
+			: spawn(cmd, args, { cwd: this.basePath, stdio: 'pipe', detached: true })
+		this.childProcess = process
+		process.stdout.on('data', data => this._emitLog({ log: data.toString() }, onLog))
+		process.stderr.on('data', data => this._emitLog({ log: data.toString() }, onLog))
+		return new Promise(resolve => {
+			process.once('error', () => resolve(false))
+			process.once('close', code => resolve(code === 0))
+		})
+	}
 	// 添加状态重连输出监听
 	addCallback(cb) {
 		const { sendLog, handleEnd } = cb
@@ -139,6 +160,20 @@ class BuildManager {
 		this.logEntries = []
 		this.logLength = 0
 		this.clearCallbacks()
+
+		const installed = await this._installDependencies(onLog)
+		this.childProcess = null
+		if (!installed) {
+			const cbData = {
+				code: 500,
+				success: false,
+				message: '\n[System] 安装更新依赖失败\n',
+				i18nKey: 'api.build.installFailed'
+			}
+			this.execCallback('error', cbData)
+			onError(cbData)
+			return
+		}
 
 		this._emitLog(
 			{
