@@ -33,7 +33,8 @@ Mizuki Manager 直接管理服务器上的 Mizuki 项目文件，为不希望频
 - **资源管理**：上传和管理博客使用的图片、音频及其他静态资源。
 - **构建部署**：在后台触发生产构建与部署，并查看实时构建日志。
 - **身份认证**：使用 JWT、刷新令牌 Cookie、验证码和单会话控制保护管理入口。
-- **响应式界面**：基于 React、Tailwind CSS 与 Radix UI，适配桌面和移动设备。
+- **响应式界面**：前端基于 React 19、TypeScript、React Router、Tailwind CSS 4、shadcn/ui 与 Radix UI，适配桌面和移动设备。
+- **多语言支持**：内置简体中文和英文界面，可随时切换显示语言。
 
 ## 界面预览
 
@@ -105,7 +106,7 @@ Mizuki Manager
 
 | 层级 | 技术 |
 | --- | --- |
-| 前端 | React 19、TypeScript、React Router、Tailwind CSS 4、Radix UI |
+| 前端 | React 19、TypeScript、React Router、Tailwind CSS 4、shadcn/ui、Radix UI |
 | Markdown | `@uiw/react-md-editor` |
 | 构建 | Webpack 5、esbuild-loader、PostCSS |
 | 服务端 | Node.js、Express 5 |

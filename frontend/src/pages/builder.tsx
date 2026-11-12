@@ -182,7 +182,7 @@ export default function Builder() {
   return (
     <Page className="flex min-h-screen flex-col">
       <PageHeader
-        eyebrow={t('fields.deploymentEyebrow')}
+        eyebrow="Deployment"
         title={t('pages.builder.title')}
         description={t('pages.builder.description')}
         actions={
