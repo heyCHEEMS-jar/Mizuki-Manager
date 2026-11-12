@@ -20,31 +20,21 @@ const PACKAGE_TOOL = process.env.PACKAGE_TOOL
 
 const getPackageCmd = command => {
 	if (PACKAGE_TOOL === 'pnpm') return ['pnpm', [command]]
-	if (PACKAGE_TOOL === 'npm') return ['npm', ['run', command]]
+	if (PACKAGE_TOOL === 'npm') return ['npm', command === 'install' ? ['install'] : ['run', command]]
 	if (PACKAGE_TOOL === 'yarn') return ['yarn', [command]]
 	console.warn('未知的包管理器:', PACKAGE_TOOL)
 	return ['pnpm', [command]]
 }
 
-// 安装更新前端依赖
+// 安装更新工作区依赖
 const [installCmd, installArgs] = getPackageCmd('install')
-const frontendInstallRes = spawnSync(installCmd, installArgs, {
-	stdio: 'inherit',
-	shell: true,
-	cwd: FRONTEND_DIR
-})
-// 安装更新根目录依赖
-const rootInstallRes = spawnSync(installCmd, installArgs, {
+const installRes = spawnSync(installCmd, installArgs, {
 	stdio: 'inherit',
 	shell: true,
 	cwd: ROOT_DIR
 })
-if (frontendInstallRes.status !== 0) {
-	console.error('\n前端依赖安装更新失败！\n')
-	process.exit(1)
-}
-if (rootInstallRes.status !== 0) {
-	console.error('\n根目录依赖安装更新失败！\n')
+if (installRes.status !== 0) {
+	console.error('\n依赖安装更新失败！\n')
 	process.exit(1)
 }
 
