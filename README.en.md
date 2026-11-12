@@ -40,32 +40,48 @@ For the simplest deployment, run Mizuki Manager on the same server as the Mizuki
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/01-login.png" alt="Login" width="100%" /><br />
+      <img src="./docs/images/showcase/01-login.webp" alt="Login" width="100%" /><br />
       <sub>Login</sub>
     </td>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/02-dashboard.png" alt="Dashboard" width="100%" /><br />
+      <img src="./docs/images/showcase/02-dashboard.webp" alt="Dashboard" width="100%" /><br />
       <sub>Dashboard</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/03-posts.png" alt="Post management" width="100%" /><br />
-      <sub>Post management</sub>
+      <img src="./docs/images/showcase/03-about.webp" alt="About page" width="100%" /><br />
+      <sub>About page</sub>
     </td>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/04-markdown-editor.png" alt="Markdown editor" width="100%" /><br />
-      <sub>Markdown editor</sub>
+      <img src="./docs/images/showcase/04-album.webp" alt="Album management" width="100%" /><br />
+      <sub>Album management</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/05-config.png" alt="Configuration" width="100%" /><br />
+      <img src="./docs/images/showcase/05-album-settings.webp" alt="Album settings" width="100%" /><br />
+      <sub>Album settings</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/05-builder.webp" alt="Build and deployment" width="100%" /><br />
+      <sub>Build and deployment</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/images/showcase/06-configuration.webp" alt="Configuration" width="100%" /><br />
       <sub>Configuration</sub>
     </td>
     <td align="center" width="50%">
-      <img src="./docs/images/showcase/06-builder.png" alt="Build and deployment" width="100%" /><br />
-      <sub>Build and deployment</sub>
+      <img src="./docs/images/showcase/07-posts.webp" alt="Post management" width="100%" /><br />
+      <sub>Post management</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="./docs/images/showcase/08-markdown-editor.webp" alt="Markdown editor" width="50%" /><br />
+      <sub>Markdown editor</sub>
     </td>
   </tr>
 </table>
@@ -212,7 +228,6 @@ Make sure `BASE_PATH` points to a valid Mizuki project and that the current user
 ## Related Projects
 
 - [Mizuki](https://github.com/LyraVoid/Mizuki) — the static blog managed by this project.
-- [Mizuki Manager Issues](https://github.com/2126340634/Mizuki-Manager/issues) — bug reports and feature requests.
 
 ## License
 

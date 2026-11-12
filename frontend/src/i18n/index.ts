@@ -81,6 +81,7 @@ const resources = {
         connectionError: '连接异常'
       },
       buildLogs: {
+        installing: '\n[系统] 正在安装更新依赖...\n',
         preparing: '\n[系统] 准备启动构建任务...\n',
         connected: '\n---\n已连接部署进程\n{{time}}\n---\n',
         movingFiles: '\n[系统] 构建完成，正在迁移文件到部署目录...\n',
@@ -167,6 +168,7 @@ const resources = {
           noRunningTask: '无运行中的任务',
           stopFailed: '终止部署失败',
           taskAlreadyRunning: '已有在运行中的任务',
+          installFailed: '安装更新依赖失败',
           failed: '构建失败：退出码 {{exitCode}}',
           startFailed: '构建进程启动失败：{{detail}}'
         },
@@ -367,6 +369,7 @@ const resources = {
         connectionError: 'Connection error'
       },
       buildLogs: {
+        installing: '\n[System] Installing dependency updates...\n',
         preparing: '\n[System] Preparing to start the build...\n',
         connected: '\n---\nConnected to the deployment process\n{{time}}\n---\n',
         movingFiles: '\n[System] Build complete. Moving files to the deployment directory...\n',
@@ -453,6 +456,7 @@ const resources = {
           noRunningTask: 'No deployment task is running.',
           stopFailed: 'Failed to stop the deployment',
           taskAlreadyRunning: 'A task is already running.',
+          installFailed: 'Failed to install dependency updates.',
           failed: 'Build failed with exit code {{exitCode}}.',
           startFailed: 'Failed to start the build process: {{detail}}'
         },
