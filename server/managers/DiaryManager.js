@@ -23,7 +23,8 @@ class DiaryManager extends BaseManager {
 			return {
 				code: 400,
 				success: false,
-				message: '请传入data'
+				message: '请传入data',
+				i18nKey: 'api.validation.dataRequired'
 			}
 		const configImagePaths = this._getImagePaths(data)
 		return await super.clearOldImages(configImagePaths, this.diariesDir)

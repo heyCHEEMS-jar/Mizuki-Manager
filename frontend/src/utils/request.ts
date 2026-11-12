@@ -7,6 +7,21 @@ type MethodType = 'GET' | 'POST' | 'PUT' | 'DELETE'
 export const SESSION_CONFLICT_EVENT = 'session-conflict'
 export const SESSION_CONFLICT_CODE = 40301
 
+interface ResponseMessage {
+  i18nKey?: string
+  i18nParams?: Record<string, unknown>
+  i18nErrors?: ResponseMessage[]
+}
+
+export function getResponseMessage(data: ResponseMessage, fallback = 'notifications.requestFailed'): string {
+  if (!data.i18nKey || !i18n.exists(data.i18nKey)) return i18n.t(fallback)
+  const params = { ...data.i18nParams }
+  if (data.i18nErrors?.length) {
+    params.failedItems = data.i18nErrors.map(item => getResponseMessage(item, 'api.upload.failed')).join(i18n.language.startsWith('zh') ? '、' : '; ')
+  }
+  return i18n.t(data.i18nKey, params)
+}
+
 interface RequestParams {
   url: string
   method?: MethodType
@@ -103,6 +118,7 @@ async function _handleResponse(
   retried?: boolean
 ) {
   const resJson = await res.json()
+  if (resJson.i18nKey) resJson.message = getResponseMessage(resJson)
   if (resJson.code === SESSION_CONFLICT_CODE) {
     window.dispatchEvent(new CustomEvent(SESSION_CONFLICT_EVENT, { detail: resJson.message }))
     throw resJson
@@ -128,7 +144,7 @@ const NO_MESSAGE_CODE = [601, SESSION_CONFLICT_CODE]
 function _handleError(err: any) {
   if (!NO_MESSAGE_CODE.includes(err.code)) {
     console.error(err)
-    message.error(err.message || i18n.t('notifications.requestFailed'))
+    message.error(getResponseMessage(err))
   }
 }
 

@@ -24,7 +24,7 @@ router.post('/login', (req, res) => {
 
 router.post('/logout', (_req, res) => {
 	res.clearCookie('refreshToken', COOKIE_OPTIONS)
-	res.status(200).json({ code: 200, success: true, message: '退出成功' })
+	res.status(200).json({ code: 200, success: true, message: '退出成功', i18nKey: 'api.logoutSuccess' })
 })
 
 router.get('/refresh-captcha', (req, res) => {

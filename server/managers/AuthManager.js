@@ -61,6 +61,7 @@ class AuthManager {
 				code: 500,
 				success: false,
 				message: '刷新验证码失败',
+				i18nKey: 'login.refreshCaptchaFailed',
 				error: err
 			}
 		}
@@ -78,7 +79,8 @@ class AuthManager {
 			return {
 				code: 400,
 				success: false,
-				message: '账号或密码不能为空'
+				message: '账号或密码不能为空',
+				i18nKey: 'login.credentialsRequired'
 			}
 		try {
 			const attempt = this.loginMap.get(username)
@@ -104,6 +106,7 @@ class AuthManager {
 						code: 403,
 						success: false,
 						message: '请输入正确的验证码',
+						i18nKey: 'login.invalidCaptcha',
 						data: {
 							captchaBase64: newCaptcha.base64
 						}
@@ -149,6 +152,7 @@ class AuthManager {
 				code: 403,
 				success: false,
 				message: '用户名或密码错误',
+				i18nKey: 'login.invalidCredentials',
 				data: {
 					captchaBase64: newCaptcha.base64
 				}
@@ -158,6 +162,7 @@ class AuthManager {
 				code: 500,
 				success: false,
 				message: '登录失败',
+				i18nKey: 'login.failed',
 				error: err
 			}
 		}
@@ -168,16 +173,17 @@ class AuthManager {
 	 * @returns {{ code: number, success: boolean, message?: string, data?: any }}
 	 */
 	verify(token) {
-		if (!token) return { code: 401, success: false, message: '请先登录' }
+		if (!token) return { code: 401, success: false, message: '请先登录', i18nKey: 'api.auth.loginRequired' }
 		try {
 			jwt.verify(token, JWT_SECRET)
 			return { code: 200, success: true }
 		} catch {
-			return { code: 401, success: false, message: '登录凭证无效' }
+			return { code: 401, success: false, message: '登录凭证无效', i18nKey: 'api.auth.invalidCredential' }
 		}
 	}
 	refreshToken(refreshToken) {
-		if (!refreshToken || refreshToken !== this.curSession) return { code: 401, success: false, message: '请先登录' }
+		if (!refreshToken || refreshToken !== this.curSession)
+			return { code: 401, success: false, message: '请先登录', i18nKey: 'api.auth.loginRequired' }
 		try {
 			const decoded = jwt.verify(refreshToken, JWT_SECRET)
 			const newToken = jwt.sign(
@@ -191,13 +197,19 @@ class AuthManager {
 			)
 			return { code: 200, success: true, data: { token: newToken } }
 		} catch {
-			return { code: 401, success: false, message: '登录凭证已失效，请重新登录' }
+			return { code: 401, success: false, message: '登录凭证已失效，请重新登录', i18nKey: 'api.auth.sessionExpired' }
 		}
 	}
 	// 检查长token是否为当前用户的，单点互踢
 	checkSession(refreshToken) {
 		if (!refreshToken || !this.curSession) return { code: 601, success: false } // 未登录不提示，使用自定义状态码防止前端401跳转
-		if (refreshToken !== this.curSession) return { code: 403, success: false, message: '检测到多端登录，已强制退出当前账号' }
+		if (refreshToken !== this.curSession)
+			return {
+				code: 403,
+				success: false,
+				message: '检测到多端登录，已强制退出当前账号',
+				i18nKey: 'api.auth.sessionConflict'
+			}
 		return { code: 200, success: true }
 	}
 }

@@ -31,7 +31,8 @@ class BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请上传文件'
+					message: '请上传文件',
+					i18nKey: 'api.upload.fileRequired'
 				}
 			const tasks = files.map(async (file, index) => {
 				if (file.originalname) {
@@ -42,14 +43,18 @@ class BaseManager {
 					throw {
 						code: 400,
 						success: false,
-						message: `请上传正确的文件格式: ${filename}`
+						message: `请上传正确的文件格式: ${filename}`,
+						i18nKey: 'api.upload.invalidFormat',
+						i18nParams: { filename }
 					}
 				}
 				if (file.size > config.MAX_FILE_SIZE) {
 					throw {
 						code: 400,
 						success: false,
-						message: `文件大小不能超过 ${(config.MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB`
+						message: `文件大小不能超过 ${(config.MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB`,
+						i18nKey: 'api.upload.fileTooLarge',
+						i18nParams: { maxSizeMb: (config.MAX_FILE_SIZE / 1024 / 1024).toFixed(0) }
 					}
 				}
 				if (await fileExists(directory, filename)) {
@@ -57,7 +62,9 @@ class BaseManager {
 						throw {
 							code: 409,
 							success: false,
-							message: `名为 ${filename} 的文件已存在`
+							message: `名为 ${filename} 的文件已存在`,
+							i18nKey: 'api.upload.fileAlreadyExists',
+							i18nParams: { filename }
 						}
 					}
 				} else {
@@ -85,6 +92,11 @@ class BaseManager {
 					code: 500,
 					success: false,
 					message: `上传失败: ${failedPaths.join('、')}`,
+					i18nKey: 'api.upload.batchFailed',
+					i18nErrors: errors.map(({ res, filename }) => ({
+						i18nKey: res.reason?.i18nKey || 'api.upload.failedFile',
+						i18nParams: res.reason?.i18nParams || { filename }
+					})),
 					error: errors
 				}
 			}
@@ -98,6 +110,8 @@ class BaseManager {
 				code: err.code || 500,
 				success: false,
 				message: err.message || '上传失败',
+				i18nKey: err.i18nKey || 'api.upload.failed',
+				i18nParams: err.i18nParams,
 				error: err
 			}
 		}
@@ -137,6 +151,8 @@ class BaseManager {
 					code: 500,
 					success: false,
 					message: `旧图片清理失败: ${failedPaths.join('、')}`,
+					i18nKey: 'api.cleanup.oldFilesFailedWithPaths',
+					i18nParams: { paths: failedPaths.join('、') },
 					error: err
 				}
 			}
@@ -149,6 +165,7 @@ class BaseManager {
 				code: 500,
 				success: false,
 				message: `旧图片清理失败`,
+				i18nKey: 'api.cleanup.oldFilesFailed',
 				error: err
 			}
 		}
@@ -179,13 +196,15 @@ class BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入directory'
+					message: '请传入directory',
+					i18nKey: 'api.validation.directoryRequired'
 				}
 			if (typeof filename !== 'string' || !filename.length)
 				return {
 					code: 400,
 					success: false,
-					message: '请传入filename'
+					message: '请传入filename',
+					i18nKey: 'api.validation.filenameRequired'
 				}
 			const code = await readFile(directory, filename, 'utf8')
 			const ast = recast.parse(code, astParseOptions)
@@ -198,9 +217,9 @@ class BaseManager {
 					if (node.init) {
 						data[varName] = wrap
 							? {
-									value: ctx._astToValue(node.init, wrap),
-									comment: ctx._getComment(node)
-								}
+								value: ctx._astToValue(node.init, wrap),
+								comment: ctx._getComment(node)
+							}
 							: ctx._astToValue(node.init, wrap)
 					}
 					return false
@@ -216,6 +235,7 @@ class BaseManager {
 				code: 500,
 				success: false,
 				message: '获取配置文件失败',
+				i18nKey: 'api.config.readFailed',
 				error: err
 			}
 		}
@@ -236,8 +256,8 @@ class BaseManager {
 		astParseOptions = defaultAstParseOptions,
 		options = {
 			unwrap: false,
-			beforeWrite: () => {},
-			writed: () => {}
+			beforeWrite: () => { },
+			writed: () => { }
 		}
 	) {
 		const { beforeWrite, writed, unwrap } = options
@@ -246,19 +266,22 @@ class BaseManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请传入directory'
+					message: '请传入directory',
+					i18nKey: 'api.validation.directoryRequired'
 				}
 			if (typeof filename !== 'string' || !filename.length)
 				return {
 					code: 400,
 					success: false,
-					message: '请传入filename'
+					message: '请传入filename',
+					i18nKey: 'api.validation.filenameRequired'
 				}
 			if (!isObject(data) || !Object.keys(data).length)
 				return {
 					code: 400,
 					success: false,
-					message: '请传入data'
+					message: '请传入data',
+					i18nKey: 'api.validation.dataRequired'
 				}
 			const code = await readFile(directory, filename, 'utf8')
 			const ast = recast.parse(code, astParseOptions)
@@ -298,6 +321,7 @@ class BaseManager {
 				code: 500,
 				success: false,
 				message: '配置更新失败',
+				i18nKey: 'api.config.updateFailed',
 				error: err
 			}
 		}
@@ -343,9 +367,9 @@ class BaseManager {
 					const key = prop.key.name || prop.key.value
 					obj[key] = wrap
 						? {
-								value: ctx._astToValue(prop.value, wrap),
-								comment: this._getComment(prop)
-							}
+							value: ctx._astToValue(prop.value, wrap),
+							comment: this._getComment(prop)
+						}
 						: ctx._astToValue(prop.value, wrap)
 				}
 			})

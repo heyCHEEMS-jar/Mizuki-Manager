@@ -207,7 +207,42 @@ export const fields = {
     editPost: '编辑文章',
     newPost: '新建文章',
     backToList: '返回列表',
-    writingHelp: '编写帮助'
+    writingHelp: '编写帮助',
+    deploymentEyebrow: '部署',
+    contentEyebrow: '内容',
+    postEyebrow: '文章',
+    loadingPosts: '正在加载文章...',
+    editNamedPost: '编辑 {{filename}}',
+    viewNamedPost: '查看 {{filename}}',
+    deleteNamedPost: '删除 {{filename}}',
+    deletePostDescription: '“{{filename}}”删除后无法恢复。',
+    noMatchingPosts: '当前页没有匹配的文章',
+    noPosts: '暂无文章',
+    renamePostPrompt: '输入新名称',
+    untitledPost: '未命名文章',
+    newPostDescription: '从默认模板开始编写新的 Markdown 文章。',
+    restoreDefaultContentTitle: '恢复默认内容？',
+    reloadServerContentTitle: '重载服务器内容？',
+    emptyPostContent: '还没有任何内容哦~',
+    createdFilenameMissing: '未从响应中获取到创建的文件名',
+    renamedFilenameMissing: '未从响应中获取到重命名后的新文件名',
+    defaultPostTemplate: `---
+title: 标题
+published: {{date}}
+pinned: 是否置顶(true/false)
+description: 介绍
+tags: [标签1, 标签2, 标签3...]
+category: 分类
+licenseName: "CC BY 4.0"
+author: 作者
+sourceLink: "来源链接"
+draft: 是否为草稿(true/false)
+date: {{date}}
+image: "封面图片链接"
+---
+
+# 未命名文章
+`
   },
   en: {
     markdownDocument: 'Markdown document',
@@ -417,6 +452,41 @@ export const fields = {
     editPost: 'Edit post',
     newPost: 'New post',
     backToList: 'Back to list',
-    writingHelp: 'Writing guide'
+    writingHelp: 'Writing guide',
+    deploymentEyebrow: 'Deployment',
+    contentEyebrow: 'Content',
+    postEyebrow: 'Post',
+    loadingPosts: 'Loading posts...',
+    editNamedPost: 'Edit {{filename}}',
+    viewNamedPost: 'View {{filename}}',
+    deleteNamedPost: 'Delete {{filename}}',
+    deletePostDescription: '“{{filename}}” cannot be recovered after deletion.',
+    noMatchingPosts: 'No matching posts on this page',
+    noPosts: 'No posts yet',
+    renamePostPrompt: 'Enter a new name',
+    untitledPost: 'Untitled post',
+    newPostDescription: 'Start a new Markdown post from the default template.',
+    restoreDefaultContentTitle: 'Restore the default content?',
+    reloadServerContentTitle: 'Reload the server content?',
+    emptyPostContent: 'No content yet.',
+    createdFilenameMissing: 'The created filename was missing from the response.',
+    renamedFilenameMissing: 'The renamed filename was missing from the response.',
+    defaultPostTemplate: `---
+title: Title
+published: {{date}}
+pinned: Pinned (true/false)
+description: Description
+tags: [tag1, tag2, tag3...]
+category: Category
+licenseName: "CC BY 4.0"
+author: Author
+sourceLink: "Source link"
+draft: Draft (true/false)
+date: {{date}}
+image: "Cover image URL"
+---
+
+# Untitled post
+`
   }
 }

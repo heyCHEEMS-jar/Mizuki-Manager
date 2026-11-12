@@ -213,7 +213,7 @@ interface FormFieldProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'chi
 export const FormField = ({ name, label, rules = [], valueKey = 'value', unstyled, observe, children, className, ...props }: FormFieldProps) => {
   const form = useContext(FormContext)
   const listPath = useContext(ListContext)
-  if (!form) throw new Error('FormField 必须在 Form 内使用')
+  if (!form) return
   const fieldName = name === undefined ? undefined : [...listPath, ...toPath(name)]
   const translatedLabel = typeof label === 'string' ? i18n.t(`labels.${label}`, { defaultValue: label }) : label
   useSyncExternalStore(form.subscribe, form.getVersion, form.getVersion)
@@ -264,7 +264,7 @@ interface FormListProps {
 export const FormList = ({ name, children }: FormListProps) => {
   const form = useContext(FormContext)
   const listPath = useContext(ListContext)
-  if (!form) throw new Error('FormList 必须在 Form 内使用')
+  if (!form) return
   const fieldName = [...listPath, ...toPath(name)]
   useSyncExternalStore(form.subscribe, form.getVersion, form.getVersion)
   const value = form.getValue(fieldName)

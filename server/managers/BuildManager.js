@@ -1,7 +1,8 @@
 const fs = require('fs')
 const { spawn, exec } = require('child_process')
 const config = require('../config.js')
-const path = require('path')
+
+const BUILD_LOG_MAX_LENGTH = 200_000
 
 /**
  * 注意内部函数执行完后会清理闭包
@@ -26,12 +27,40 @@ class BuildManager {
 			}[config.PACKAGE_TOOL] || 'pnpm install'
 		this.childProcess = null
 		this.isWindows = process.platform === 'win32'
-		this.log = '' // 缓存当前日志
+		this.logEntries = [] // 缓存当前结构化日志
+		this.logLength = 0 // 日志总字符长度
 		this.callbacks = new Set() // 多个监听运行输出回调
 	}
+	_trimLog() {
+		while (this.logLength > BUILD_LOG_MAX_LENGTH && this.logEntries.length) {
+			const entry = this.logEntries[0] // 最旧的一条
+			const overflow = this.logLength - BUILD_LOG_MAX_LENGTH // 总日志超出最大的长度
+			// 最旧的一条长度<=超出的长度，整条删除
+			if (entry.i18nKey || entry.log.length <= overflow) {
+				this.logEntries.shift()
+				this.logLength -= entry.log.length
+			} else {
+				// 最旧的一条长度>超出的长度，直接抛掉超出的部分
+				entry.log = entry.log.slice(overflow)
+				this.logLength -= overflow
+			}
+		}
+	}
 	_appendLog(data) {
-		this.log += data.log || ''
-		return data
+		const entry = { log: data.log || '' }
+		if (data.i18nKey) entry.i18nKey = data.i18nKey
+		if (data.i18nParams) entry.i18nParams = data.i18nParams
+		if (entry.log) {
+			this.logEntries.push(entry)
+			this.logLength += entry.log.length
+			this._trimLog()
+		}
+		return entry
+	}
+	_emitLog(data, onLog) {
+		const entry = this._appendLog(data)
+		this.execCallback('log', entry)
+		onLog(entry)
 	}
 	// 添加状态重连输出监听
 	addCallback(cb) {
@@ -49,11 +78,13 @@ class BuildManager {
 		if (typeof sendLog === 'function') {
 			const time = new Date().toISOString().replace('T', ' ').substring(0, 19)
 			sendLog({
-				log: this.log,
+				logEntries: this.logEntries,
 				isHistory: true
 			}) // 回传历史日志
 			sendLog({
-				log: `\n---\n已连接部署进程\n${time}\n---\n`
+				log: `\n---\n已连接部署进程\n${time}\n---\n`,
+				i18nKey: 'buildLogs.connected',
+				i18nParams: { time }
 			})
 		}
 		this.callbacks.add(cb)
@@ -93,26 +124,28 @@ class BuildManager {
 			this.execCallback('error', {
 				code: 409,
 				success: false,
-				message: `\n[System] 已有在运行中的任务\n`
+				message: `\n[System] 已有在运行中的任务\n`,
+				i18nKey: 'api.build.taskAlreadyRunning'
 			})
 			onError({
 				code: 409,
 				success: false,
-				message: `\n[System] 已有在运行中的任务\n`
+				message: `\n[System] 已有在运行中的任务\n`,
+				i18nKey: 'api.build.taskAlreadyRunning'
 			})
 			return
 		}
 
-		this.log = ''
+		this.logEntries = []
+		this.logLength = 0
 		this.clearCallbacks()
 
-		this.execCallback('log', {
-			log: '\n[System] 准备启动构建任务...\n'
-		})
-		onLog(
-			this._appendLog({
-				log: '\n[System] 准备启动构建任务...\n'
-			})
+		this._emitLog(
+			{
+				log: '\n[System] 准备启动构建任务...\n',
+				i18nKey: 'buildLogs.preparing'
+			},
+			onLog
 		)
 
 		if (this.isWindows) {
@@ -133,34 +166,20 @@ class BuildManager {
 		}
 		// 监听输出
 		this.childProcess.stdout.on('data', data => {
-			const cbData = data.toString()
-			this.execCallback('log', {
-				log: cbData
-			})
-			onLog(
-				this._appendLog({
-					log: cbData
-				})
-			)
+			this._emitLog({ log: data.toString() }, onLog)
 		})
-		// 监听错误
+		// 构建工具的错误输出保持原样
 		this.childProcess.stderr.on('data', data => {
-			const cbData = data.toString()
-			this.execCallback('log', {
-				log: `[Error] ${cbData}`
-			}) // 这边不能直接error回调，不然前端直接断连了
-			onLog(
-				this._appendLog({
-					log: `[Error] ${cbData}`
-				})
-			)
+			this._emitLog({ log: data.toString() }, onLog)
 		})
 		this.childProcess.on('close', async code => {
 			if (code !== 0) {
 				const cbData = {
 					code: 500,
 					success: false,
-					message: `\n[System] 构建失败: code${code}\n`
+					message: `\n[System] 构建失败: code${code}\n`,
+					i18nKey: 'api.build.failed',
+					i18nParams: { exitCode: code }
 				}
 				this.execCallback('error', cbData)
 				onError(cbData)
@@ -168,10 +187,12 @@ class BuildManager {
 				return
 			}
 			if (this.distDir !== this.deployDir) {
-				onLog(
-					this._appendLog({
-						log: '\n[System] 构建完成，正在迁移文件到部署目录...\n'
-					})
+				this._emitLog(
+					{
+						log: '\n[System] 构建完成，正在迁移文件到部署目录...\n',
+						i18nKey: 'buildLogs.movingFiles'
+					},
+					onLog
 				)
 				await fs.promises.rm(this.deployDir, {
 					recursive: true,
@@ -182,14 +203,12 @@ class BuildManager {
 					force: true
 				})
 			}
-			const endLog = '\n[System] 部署完成\n'
-			this.execCallback('log', {
-				log: endLog
-			})
-			onLog(
-				this._appendLog({
-					log: endLog
-				})
+			this._emitLog(
+				{
+					log: '\n[System] 部署完成\n',
+					i18nKey: 'buildLogs.completed'
+				},
+				onLog
 			)
 			// 结束回调
 			this.execCallback('done', {
@@ -207,7 +226,9 @@ class BuildManager {
 			const cbData = {
 				code: 500,
 				success: false,
-				message: `\n[System] 构建进程启动失败: ${err}\n`
+				message: `\n[System] 构建进程启动失败: ${err}\n`,
+				i18nKey: 'api.build.startFailed',
+				i18nParams: { detail: String(err) }
 			}
 			this.execCallback('error', cbData)
 			onError(cbData)
@@ -235,19 +256,22 @@ class BuildManager {
 				return {
 					code: 200,
 					success: true,
-					message: '已停止部署进程'
+					message: '已停止部署进程',
+					i18nKey: 'notifications.deployStopped'
 				}
 			}
 			return {
 				code: 404,
 				success: false,
-				message: '无运行中的任务'
+				message: '无运行中的任务',
+				i18nKey: 'api.build.noRunningTask'
 			}
 		} catch (err) {
 			return {
 				code: 500,
 				success: false,
 				message: '执行失败',
+				i18nKey: 'api.build.stopFailed',
 				error: err
 			}
 		}

@@ -80,6 +80,101 @@ const resources = {
         refreshFailed: '登录刷新失败，请稍后重试',
         connectionError: '连接异常'
       },
+      buildLogs: {
+        preparing: '\n[系统] 准备启动构建任务...\n',
+        connected: '\n---\n已连接部署进程\n{{time}}\n---\n',
+        movingFiles: '\n[系统] 构建完成，正在迁移文件到部署目录...\n',
+        completed: '\n[系统] 部署完成\n',
+        systemMessage: '\n[系统] {{message}}\n',
+        errorMessage: '\n[错误] {{message}}\n'
+      },
+      api: {
+        common: {
+          fetchFailed: '获取失败',
+          createFailed: '创建失败',
+          deleteFailed: '删除失败',
+          updateFailed: '修改失败',
+          renameFailed: '重命名失败'
+        },
+        validation: {
+          directoryRequired: '请传入目录',
+          filenameRequired: '请传入文件名',
+          dataRequired: '请传入数据'
+        },
+        upload: {
+          fileRequired: '请上传文件',
+          invalidFormat: '请上传正确的文件格式：{{filename}}',
+          fileTooLarge: '文件大小不能超过 {{maxSizeMb}} MB',
+          fileAlreadyExists: '名为 {{filename}} 的文件已存在',
+          batchFailed: '上传失败：{{failedItems}}',
+          failed: '上传失败',
+          failedFile: '文件上传失败：{{filename}}',
+          markdownRequired: '请上传 Markdown 文件'
+        },
+        cleanup: {
+          oldFilesFailed: '旧文件清理失败',
+          oldFilesFailedWithPaths: '旧文件清理失败：{{paths}}'
+        },
+        config: {
+          readFailed: '获取配置文件失败',
+          updateFailed: '配置更新失败',
+          infoAutoCreated: '配置文件不存在，已自动创建'
+        },
+        file: {
+          readFailed: '文件读取失败',
+          replaceFailed: '替换失败',
+          notFound: '文件不存在',
+          invalid: '请传入正确的文件',
+          invalidName: '请传入正确的文件名',
+          invalidNewName: '请传入正确的新文件名',
+          invalidNamePattern: '文件名不能有特殊符号，长度最大为 {{maxLength}} 个字符',
+          invalidPaths: '请传入正确的文件路径',
+          deleteFailedWithPaths: '以下文件删除失败：{{filePaths}}',
+          alreadyExists: '当前名称的文件已存在',
+          markdownFilenameRequired: '请输入 Markdown 格式的文件名'
+        },
+        content: {
+          invalid: '请正确输入新内容',
+          required: '新内容不能为空'
+        },
+        directory: {
+          alreadyExists: '该目录已存在',
+          notFound: '未找到该目录'
+        },
+        album: {
+          invalidFolderName: '请传入正确的文件夹名',
+          invalidFolderPath: '请传入正确的文件夹路径'
+        },
+        pagination: {
+          invalidPageNumber: '请传入正确的页码',
+          invalidPageSize: '请传入正确的每页数量'
+        },
+        post: {
+          listFailed: '获取所有文章失败',
+          createFailed: '添加失败',
+          invalidNamePattern: '文章名称不能有特殊符号，长度最大为 {{maxLength}} 个字符'
+        },
+        auth: {
+          loginRequired: '请先登录',
+          invalidCredential: '登录凭证无效',
+          sessionExpired: '登录凭证已失效，请重新登录',
+          sessionConflict: '检测到多端登录，已强制退出当前账号',
+          credentialMissing: '未提供登录凭证',
+          credentialMalformed: '登录凭证错误',
+          authenticationFailed: '身份认证失败'
+        },
+        build: {
+          noRunningTask: '无运行中的任务',
+          stopFailed: '终止部署失败',
+          taskAlreadyRunning: '已有在运行中的任务',
+          failed: '构建失败：退出码 {{exitCode}}',
+          startFailed: '构建进程启动失败：{{detail}}'
+        },
+        security: { illegalPath: '非法路径访问' },
+        route: { notFound: '无效的资源路径' },
+        server: { internalError: '服务器内部错误' },
+        logoutSuccess: '退出成功'
+      },
       app: {
         blogManager: '博客内容管理',
         navigation: '功能导航',
@@ -143,7 +238,12 @@ const resources = {
         expires: '登录有效期：{{time}}',
         submit: '登录',
         welcome: '欢迎回来',
-        usernameRequired: '请先输入用户名'
+        usernameRequired: '请先输入用户名',
+        credentialsRequired: '账号或密码不能为空',
+        invalidCaptcha: '请输入正确的验证码',
+        invalidCredentials: '用户名或密码错误',
+        failed: '登录失败',
+        refreshCaptchaFailed: '刷新验证码失败'
       },
       dashboard: {
         description: '管理博客内容、媒体资源、构建任务与站点配置。',
@@ -266,6 +366,101 @@ const resources = {
         refreshFailed: 'Sign-in refresh failed. Please try again later.',
         connectionError: 'Connection error'
       },
+      buildLogs: {
+        preparing: '\n[System] Preparing to start the build...\n',
+        connected: '\n---\nConnected to the deployment process\n{{time}}\n---\n',
+        movingFiles: '\n[System] Build complete. Moving files to the deployment directory...\n',
+        completed: '\n[System] Deployment complete\n',
+        systemMessage: '\n[System] {{message}}\n',
+        errorMessage: '\n[Error] {{message}}\n'
+      },
+      api: {
+        common: {
+          fetchFailed: 'Failed to fetch data',
+          createFailed: 'Failed to create',
+          deleteFailed: 'Failed to delete',
+          updateFailed: 'Failed to update',
+          renameFailed: 'Failed to rename'
+        },
+        validation: {
+          directoryRequired: 'A directory is required.',
+          filenameRequired: 'A filename is required.',
+          dataRequired: 'Data is required.'
+        },
+        upload: {
+          fileRequired: 'Select a file to upload.',
+          invalidFormat: 'Unsupported file format: {{filename}}',
+          fileTooLarge: 'The file size cannot exceed {{maxSizeMb}} MB.',
+          fileAlreadyExists: 'A file named {{filename}} already exists.',
+          batchFailed: 'Upload failed: {{failedItems}}',
+          failed: 'Upload failed',
+          failedFile: 'Failed to upload file: {{filename}}',
+          markdownRequired: 'Select a Markdown file.'
+        },
+        cleanup: {
+          oldFilesFailed: 'Failed to clean up old files',
+          oldFilesFailedWithPaths: 'Failed to clean up old files: {{paths}}'
+        },
+        config: {
+          readFailed: 'Failed to read the configuration file',
+          updateFailed: 'Failed to update the configuration',
+          infoAutoCreated: 'The configuration file was missing and has been created automatically.'
+        },
+        file: {
+          readFailed: 'Failed to read the file',
+          replaceFailed: 'Failed to replace the file',
+          notFound: 'File not found',
+          invalid: 'Provide a valid file.',
+          invalidName: 'Provide a valid filename.',
+          invalidNewName: 'Provide a valid new filename.',
+          invalidNamePattern: 'The filename cannot contain special characters and must be no more than {{maxLength}} characters.',
+          invalidPaths: 'Provide valid file paths.',
+          deleteFailedWithPaths: 'The following files could not be deleted: {{filePaths}}',
+          alreadyExists: 'A file with this name already exists.',
+          markdownFilenameRequired: 'Enter a Markdown filename.'
+        },
+        content: {
+          invalid: 'Provide valid new content.',
+          required: 'New content is required.'
+        },
+        directory: {
+          alreadyExists: 'The directory already exists.',
+          notFound: 'Directory not found'
+        },
+        album: {
+          invalidFolderName: 'Provide a valid folder name.',
+          invalidFolderPath: 'Provide a valid folder path.'
+        },
+        pagination: {
+          invalidPageNumber: 'Provide a valid page number.',
+          invalidPageSize: 'Provide a valid page size.'
+        },
+        post: {
+          listFailed: 'Failed to fetch posts',
+          createFailed: 'Failed to add the post',
+          invalidNamePattern: 'The post name cannot contain special characters and must be no more than {{maxLength}} characters.'
+        },
+        auth: {
+          loginRequired: 'Sign in first.',
+          invalidCredential: 'Invalid sign-in credentials',
+          sessionExpired: 'Your sign-in session has expired. Sign in again.',
+          sessionConflict: 'Another sign-in was detected, so this session has been signed out.',
+          credentialMissing: 'Sign-in credentials were not provided.',
+          credentialMalformed: 'The sign-in credentials are malformed.',
+          authenticationFailed: 'Authentication failed'
+        },
+        build: {
+          noRunningTask: 'No deployment task is running.',
+          stopFailed: 'Failed to stop the deployment',
+          taskAlreadyRunning: 'A task is already running.',
+          failed: 'Build failed with exit code {{exitCode}}.',
+          startFailed: 'Failed to start the build process: {{detail}}'
+        },
+        security: { illegalPath: 'Access to this path is not allowed.' },
+        route: { notFound: 'Invalid resource path' },
+        server: { internalError: 'Internal server error' },
+        logoutSuccess: 'Signed out successfully'
+      },
       options: optionTranslations,
       labels: labelTranslations,
       app: {
@@ -345,7 +540,12 @@ const resources = {
         expires: 'Session duration: {{time}}',
         submit: 'Sign in',
         welcome: 'Welcome back',
-        usernameRequired: 'Enter your username first.'
+        usernameRequired: 'Enter your username first.',
+        credentialsRequired: 'Username and password are required.',
+        invalidCaptcha: 'Enter the correct verification code.',
+        invalidCredentials: 'Incorrect username or password.',
+        failed: 'Sign-in failed.',
+        refreshCaptchaFailed: 'Failed to refresh the verification code.'
       },
       dashboard: {
         description: 'Manage blog content, media, build tasks, and site settings.',

@@ -1347,15 +1347,19 @@ export default function Config() {
     try {
       setLoading(true)
       const res = await getConfigData()
-      if (res.data && typeof res.data === 'object') {
-        // 保存原始数据
-        originalData.current = res.data // {value, comment}
-        await db.saveCache('original_data', JSON.stringify(res.data))
-        // 解包value给表单
-        const unwrappedData = unwrap(res.data, 'value')
-        form.setValues(unwrappedData)
-      } else notify.error(i18n.t('notifications.invalidConfig'))
+      if (!res.data || typeof res.data !== 'object') {
+        notify.error(i18n.t('notifications.invalidConfig'))
+        return false
+      }
+      // 保存原始数据
+      originalData.current = res.data // {value, comment}
+      await db.saveCache('original_data', JSON.stringify(res.data))
+      // 解包value给表单
+      const unwrappedData = unwrap(res.data, 'value')
+      form.setValues(unwrappedData)
+      return true
     } catch {
+      return false
     } finally {
       setLoading(false)
     }
@@ -1363,7 +1367,7 @@ export default function Config() {
 
   // 重载最新数据
   const reloadContent = useCallback(async () => {
-    await getConfig()
+    if (!(await getConfig())) return
     await db.clearCache('latest')
     setShowReload(false)
     notify.info(i18n.t('notifications.configReloaded'))
@@ -1466,10 +1470,10 @@ export default function Config() {
                   originalData.current = originalValue
                   form.setValues(draftValue)
                   setShowReload(true) // 只要有修改数据缓存就显示重载按钮
-                } else throw new Error('原始缓存无效')
-              } else throw new Error('原始缓存无效')
+                }
+              }
             })
-          } else throw new Error('修改数据缓存无效')
+          }
         } catch {
           getConfig()
         }

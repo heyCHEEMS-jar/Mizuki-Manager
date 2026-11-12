@@ -21,6 +21,7 @@ class AboutManager {
 				code: 500,
 				success: false,
 				message: '文件读取失败',
+				i18nKey: 'api.file.readFailed',
 				error: err
 			}
 		}
@@ -32,13 +33,15 @@ class AboutManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请上传文件'
+					message: '请上传文件',
+					i18nKey: 'api.upload.fileRequired'
 				}
 			if (!file.originalname.endsWith('.md'))
 				return {
 					code: 400,
 					success: false,
-					message: '请上传.md格式文件'
+					message: '请上传.md格式文件',
+					i18nKey: 'api.upload.markdownRequired'
 				}
 			await writeFile(this.aboutDir, this.aboutFilename, file.buffer)
 			return {
@@ -50,6 +53,7 @@ class AboutManager {
 				code: 500,
 				success: false,
 				message: '替换失败',
+				i18nKey: 'api.file.replaceFailed',
 				error: err
 			}
 		}
@@ -61,13 +65,15 @@ class AboutManager {
 				return {
 					code: 400,
 					success: false,
-					message: '请正确输入新内容'
+					message: '请正确输入新内容',
+					i18nKey: 'api.content.invalid'
 				}
 			if (!(await fileExists(this.aboutDir, this.aboutFilename)))
 				return {
 					code: 404,
 					success: false,
-					message: '文件不存在'
+					message: '文件不存在',
+					i18nKey: 'api.file.notFound'
 				}
 			await writeFile(this.aboutDir, this.aboutFilename, content)
 			return {
@@ -79,6 +85,7 @@ class AboutManager {
 				code: 500,
 				success: false,
 				message: '修改失败',
+				i18nKey: 'api.common.updateFailed',
 				error: err
 			}
 		}

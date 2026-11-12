@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import i18n from '../i18n'
 import { useTranslation } from 'react-i18next'
 import MDEditor from '@uiw/react-md-editor'
 import { ArrowLeft, Edit3, ExternalLink, Eye, FilePlus2, FileText, FileUp, LoaderCircle, RefreshCw, Save, Search, Trash2 } from 'lucide-react'
@@ -12,27 +11,9 @@ import { createPost, deletePost, getAllPosts, getPostContent, renamePost, update
 import { debounce, throttle } from '../utils/util'
 
 const today = new Date().toISOString().split('T')[0]
-const POST_FRONT_MATTER = [
-  '---',
-  'title: 标题',
-  `published: ${today}`,
-  'pinned: 是否置顶(true/false)',
-  'description: 介绍',
-  'tags: [标签1, 标签2, 标签3...]',
-  'category: 分类',
-  'licenseName: "CC BY 4.0"',
-  'author: 作者',
-  'sourceLink: "来源链接"',
-  'draft: 是否为草稿(true/false)',
-  `date: ${today}`,
-  'image: "封面图片链接"',
-  '---',
-  '',
-  '# 未命名文章',
-  ''
-].join('\n')
 
 function PostList() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [posts, setPosts] = useState<string[]>([])
@@ -60,7 +41,7 @@ function PostList() {
       setLoading(true)
       const res = await deletePost(filename)
       if (res.success) {
-        notify.success(i18n.t('notifications.deleteSuccess'))
+        notify.success(t('notifications.deleteSuccess'))
         const remainTotal = res.data?.total || 0
         const newPageNum = Math.min(Math.max(1, Math.ceil(remainTotal / pageSize)), pageNum)
         setPageNum(newPageNum)
@@ -77,7 +58,7 @@ function PostList() {
       setLoading(true)
       const res = await uploadPostFile(file)
       if (res.success) {
-        notify.success(i18n.t('notifications.uploadSuccess'))
+        notify.success(t('notifications.uploadSuccess'))
         await getPosts(pageNum, pageSize)
       }
     } catch {
@@ -105,18 +86,18 @@ function PostList() {
   return (
     <Page>
       <PageHeader
-        eyebrow="Content"
-        title={i18n.t('pages.post.title')}
-        description={i18n.t('pages.post.description')}
+        eyebrow={t('fields.contentEyebrow')}
+        title={t('pages.post.title')}
+        description={t('pages.post.description')}
         actions={
           <>
             <Upload beforeUpload={uploadPost} accept=".md" disabled={loading}>
               <Button icon={<FileUp className="size-4" />} disabled={loading}>
-                {i18n.t('pages.post.add')}
+                {t('pages.post.add')}
               </Button>
             </Upload>
             <Button variant="default" icon={<FilePlus2 className="size-4" />} disabled={loading} onClick={() => navigate('/post/edit/new')}>
-              {i18n.t('common.newPost')}
+              {t('common.newPost')}
             </Button>
           </>
         }
@@ -128,14 +109,14 @@ function PostList() {
             value={keyword}
             onChange={event => setKeyword(event.target.value)}
             prefix={<Search className="size-4" />}
-            placeholder={i18n.t('fields.searchPosts')}
+            placeholder={t('fields.searchPosts')}
             allowClear
             className="max-w-sm"
           />
         </div>
 
         {loading ? (
-          <PageLoading label="正在加载文章..." />
+          <PageLoading label={t('fields.loadingPosts')} />
         ) : filteredPosts.length ? (
           <div className="divide-y">
             {filteredPosts.map(filename => (
@@ -151,8 +132,8 @@ function PostList() {
                     variant="ghost"
                     size="small"
                     className="size-8 px-0"
-                    title={i18n.t('common.editAction')}
-                    aria-label={`编辑 ${filename}`}
+                    title={t('common.editAction')}
+                    aria-label={t('fields.editNamedPost', { filename })}
                     onClick={() => navigate(`/post/edit/${filename}`)}
                   >
                     <Edit3 className="size-4" />
@@ -161,8 +142,8 @@ function PostList() {
                     variant="ghost"
                     size="small"
                     className="hidden size-8 px-0 sm:inline-flex"
-                    title={i18n.t('common.view')}
-                    aria-label={`查看 ${filename}`}
+                    title={t('common.view')}
+                    aria-label={t('fields.viewNamedPost', { filename })}
                     onClick={() => navigate(`/post/view/${filename}`)}
                   >
                     <Eye className="size-4" />
@@ -173,15 +154,15 @@ function PostList() {
                         variant="ghost"
                         size="small"
                         className="size-8 px-0 text-destructive hover:bg-destructive/10"
-                        title={i18n.t('common.delete')}
-                        aria-label={`删除 ${filename}`}
+                        title={t('common.delete')}
+                        aria-label={t('fields.deleteNamedPost', { filename })}
                       >
                         <Trash2 className="size-4" />
                       </Button>
                     }
-                    title={i18n.t('fields.deletePostTitle')}
-                    description={`“${filename}”删除后无法恢复。`}
-                    confirmLabel={i18n.t('common.delete')}
+                    title={t('fields.deletePostTitle')}
+                    description={t('fields.deletePostDescription', { filename })}
+                    confirmLabel={t('common.delete')}
                     variant="destructive"
                     onConfirm={() => removePost(filename)}
                   />
@@ -192,7 +173,7 @@ function PostList() {
         ) : (
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
             <FileText className="size-10 opacity-40" />
-            <p>{keyword ? '当前页没有匹配的文章' : '暂无文章'}</p>
+            <p>{keyword ? t('fields.noMatchingPosts') : t('fields.noPosts')}</p>
           </div>
         )}
 
@@ -204,7 +185,7 @@ function PostList() {
             pageSizeOptions={[12, 24]}
             showSizeChanger
             showQuickJumper
-            showTotal={total => <span className="mr-2 text-xs text-muted-foreground">{i18n.t('fields.postTotal', { count: total })}</span>}
+            showTotal={total => <span className="mr-2 text-xs text-muted-foreground">{t('fields.postTotal', { count: total })}</span>}
             onChange={onPageChange}
           />
         </div>
@@ -221,7 +202,8 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { filename = 'new' } = useParams()
-  const [content, setContent] = useState(POST_FRONT_MATTER)
+  const [defaultContent] = useState(() => t('fields.defaultPostTemplate', { date: today }))
+  const [content, setContent] = useState(defaultContent)
   const [loading, setLoading] = useState(false)
   const [showReload, setShowReload] = useState(false)
   const db = usePostContentDB()
@@ -235,27 +217,35 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
     try {
       setLoading(true)
       const res = await getPostContent(filenameRef.current)
-      if (res.data) setContent(res.data)
+      if (res.data) {
+        setContent(res.data)
+        return true
+      }
+      return false
     } catch {
+      return false
     } finally {
       setLoading(false)
     }
   }, [])
 
-  const restoreDraft = useCallback(async (id: number | string) => {
-    await db.saveCache(id, POST_FRONT_MATTER)
-  }, [])
+  const restoreDraft = useCallback(
+    async (id: number | string) => {
+      await db.saveCache(id, defaultContent)
+    },
+    [db.saveCache, defaultContent]
+  )
 
   const reloadContent = useCallback(async () => {
     if (isNewRef.current) {
-      setContent(POST_FRONT_MATTER)
+      setContent(defaultContent)
       await restoreDraft(cacheKeyRef.current)
     } else {
-      await getContent()
+      if (!(await getContent())) return
       await db.clearCache(cacheKeyRef.current)
     }
     setShowReload(false)
-  }, [getContent, restoreDraft])
+  }, [defaultContent, getContent, restoreDraft])
 
   const updateEditFilename = useCallback(
     (newFilename: string) => {
@@ -276,21 +266,21 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
           content
             .match(/^#\s+(.+)$/m)?.[1]
             .trim()
-            .replace(/[\\/:*?"<>|]/g, '_') || '未命名文章'
+            .replace(/[\\/:*?"<>|]/g, '_') || t('fields.untitledPost')
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-').replace('T', '_')
         const res = await createPost(`${title}_${timestamp}.md`, content)
         if (res.success) {
           await restoreDraft('new')
           const createdFilename = res.data?.filename
-          if (!createdFilename) throw new Error('未从响应中获取到创建的文件名')
+          if (!createdFilename) throw new Error(t('fields.createdFilenameMissing'))
           updateEditFilename(createdFilename)
-          notify.success(i18n.t('notifications.createSuccess'))
+          notify.success(t('notifications.createSuccess'))
         }
       } else {
         const res = await updatePost(filenameRef.current, content)
         if (res.success) {
           await db.clearCache(cacheKeyRef.current)
-          notify.success(i18n.t('notifications.saveSuccess'))
+          notify.success(t('notifications.saveSuccess'))
         }
       }
       setShowReload(false)
@@ -298,7 +288,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
     } finally {
       setLoading(false)
     }
-  }, [content, loading, restoreDraft, updateEditFilename])
+  }, [content, loading, restoreDraft, t, updateEditFilename])
   const throttledSave = useMemo(() => throttle(handleSave, 2000, { immediate: true }), [handleSave])
 
   const saveDraft = useCallback(async (nextContent: string) => {
@@ -311,18 +301,18 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
   const handleRename = async () => {
     try {
       setLoading(true)
-      const newName = prompt('输入新名称')
+      const newName = prompt(t('fields.renamePostPrompt'))
       if (newName === null) return
       if (!newName.trim()) {
-        notify.warning(i18n.t('notifications.nameRequired'))
+        notify.warning(t('notifications.nameRequired'))
         return
       }
       const res = await renamePost(filenameRef.current, newName.trim())
       if (res.success) {
         const renamedFilename = res.data?.filename
-        if (!renamedFilename) throw new Error('未从响应中获取到重命名后的新文件名')
+        if (!renamedFilename) throw new Error(t('fields.renamedFilenameMissing'))
         updateEditFilename(renamedFilename)
-        notify.success(i18n.t('notifications.renameSuccess'))
+        notify.success(t('notifications.renameSuccess'))
       }
     } catch {
     } finally {
@@ -344,8 +334,8 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
       }
       if (isNewRef.current) {
         setContent(draft)
-        if (draft !== POST_FRONT_MATTER) setShowReload(true)
-      } else if (draft === POST_FRONT_MATTER || !isEditingRef.current) {
+        if (draft !== defaultContent) setShowReload(true)
+      } else if (draft === defaultContent || !isEditingRef.current) {
         getContent()
       } else {
         setContent(draft)
@@ -359,13 +349,13 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
   return (
     <Page>
       <PageHeader
-        eyebrow="Post"
+        eyebrow={t('fields.postEyebrow')}
         title={pageTitle}
-        description={isNewRef.current ? '从默认模板开始编写新的 Markdown 文章。' : filenameRef.current.replace('.md', '')}
+        description={isNewRef.current ? t('fields.newPostDescription') : filenameRef.current.replace('.md', '')}
         actions={
           <>
             <Button icon={<ArrowLeft className="size-4" />} onClick={() => navigate('/post')}>
-              {i18n.t('common.back')}
+              {t('common.back')}
             </Button>
             {isEditingRef.current && (
               <>
@@ -380,23 +370,23 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
                 </a>
                 {!isNewRef.current && (
                   <Button disabled={loading} onClick={handleRename}>
-                    {i18n.t('common.rename')}
+                    {t('common.rename')}
                   </Button>
                 )}
                 {showReload && (
                   <ConfirmDialog
                     trigger={
                       <Button icon={<RefreshCw className="size-4" />} disabled={loading}>
-                        {isNewRef.current ? '恢复默认' : '重载内容'}
+                        {isNewRef.current ? t('common.restore') : t('fields.reloadContent')}
                       </Button>
                     }
-                    title={isNewRef.current ? '恢复默认内容？' : '重载服务器内容？'}
+                    title={isNewRef.current ? t('fields.restoreDefaultContentTitle') : t('fields.reloadServerContentTitle')}
                     description={t('fields.draftOverwrite')}
                     onConfirm={reloadContent}
                   />
                 )}
                 <Button variant="default" icon={<Save className="size-4" />} loading={loading} onClick={throttledSave}>
-                  {i18n.t('common.save')}
+                  {t('common.save')}
                 </Button>
               </>
             )}
@@ -406,7 +396,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
 
       <PageSection
         title={t('fields.markdownDocument')}
-        description={isEditingRef.current && showReload ? '本地草稿尚未同步到服务器' : filenameRef.current}
+        description={isEditingRef.current && showReload ? t('fields.draftUnsynced') : filenameRef.current}
         bodyClassName="relative p-0"
       >
         <MDEditor
@@ -416,7 +406,7 @@ function PostEditor({ isEditing = false }: PostEditorProps) {
           hideToolbar={!isEditingRef.current}
           visibleDragbar={isEditingRef.current}
           readOnly={!isEditingRef.current}
-          placeholder={isEditingRef.current ? POST_FRONT_MATTER : '还没有任何内容哦~'}
+          placeholder={isEditingRef.current ? defaultContent : t('fields.emptyPostContent')}
           disabled={loading}
           height="calc(100vh - 18rem)"
           minHeight={420}

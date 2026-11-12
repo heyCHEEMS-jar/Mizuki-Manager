@@ -126,7 +126,6 @@ export default function Album() {
       setLoading(true)
       const res = await getFolders()
       if (res.data) setFolders(res.data)
-      else throw new Error('未从响应中获取到文件夹列表')
     } catch {
     } finally {
       setLoading(false)
