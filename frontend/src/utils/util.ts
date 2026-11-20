@@ -112,6 +112,10 @@ export const wrap = (target: any, source: any, key: string): any => {
       })
     }
   }
+  // source为非对象值(含空字符串)时直接覆盖, 不能保留target原值
+  if (source === null || typeof source !== 'object') {
+    return key in target ? { ...target, [key]: source } : source // 包裹层保留comment
+  }
   // 处理当前层target的key键值对
   if (key in target) {
     return { ...target, [key]: wrap(target[key], source, key) }
@@ -130,11 +134,7 @@ export const deepMerge = (target: any, source: any): any => {
   if (!target || typeof target !== 'object') return JSON.parse(JSON.stringify(source)) // 防止引用当前source
   // source数组替换掉target
   if (Array.isArray(source)) {
-    const result = [...target]
-    source.forEach((item, i) => {
-      result[i] = deepMerge(target[i], item)
-    })
-    return result
+    return source.map((item, i) => deepMerge(target[i], item)) // 长度以source为准, 空数组即清空
   }
   // source对象值覆盖target
   const result = { ...target }
